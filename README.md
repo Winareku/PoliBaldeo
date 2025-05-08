@@ -14,7 +14,7 @@
 Ve a la sección de [Lanzamientos](https://github.com/Winareku/PoliBaldeo/releases) para descargar la última versión del programa.
 
 ## 🔸 Uso:
-- Ejecuta el archivo PoliBaldeo.exe (no requiere instalación).
+- Ejecuta el archivo correspondiente (no requiere instalación).
 
 ### 💡 Desarrollado en Python con PySide6.
 
