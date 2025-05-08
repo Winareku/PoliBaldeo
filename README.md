@@ -14,3 +14,7 @@
 - Ejecuta el archivo PoliBaldeo.exe (no requiere instalación).
 
 ### 💡 Desarrollado en Python con PySide6.
+
+<p align="center">
+  <img src="assets/PoliBaldeo_Screenshot01.png" alt="Screenshot #01 de PoliBaldeo"/>
+</p>
