@@ -10,6 +10,9 @@
 - Visualización clara en formato de horario semanal.
 - Interfaz simple, rápida y sin necesidad de conexión a internet.
 
+## 🛠️ Instalación:
+Ve a la sección de [Lanzamientos](https://github.com/Winareku/PoliBaldeo/releases) para descargar la última versión del programa.
+
 ## 🔸 Uso:
 - Ejecuta el archivo PoliBaldeo.exe (no requiere instalación).
 
