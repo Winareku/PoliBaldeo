@@ -1,17 +1,17 @@
 #!/usr/bin/env python
 """
-PoliBaldeo - Schedule Management Application
+PoliBaldeo
 Main entry point for the application.
 
-Author: PoliBaldeo Team
+Author: Winareku
 License: MIT
 """
 
 import sys
 from PySide6.QtWidgets import QApplication
-from PySide6.QtGui import QFontDatabase
+from PySide6.QtGui import QFontDatabase, QIcon
 from windows import PoliBaldeo
-from config import FONT_PATH, DEFAULT_THEME
+from config import FONT_PATH, DEFAULT_THEME, ICON_PATH
 
 def load_custom_font():
     """Load custom font and return font family name"""
@@ -22,6 +22,7 @@ def load_custom_font():
 
 def main():
     app = QApplication([])
+    app.setWindowIcon(QIcon(ICON_PATH))
     
     # Aplicar tema por defecto
     app.setStyleSheet(DEFAULT_THEME)
