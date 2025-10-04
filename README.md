@@ -7,7 +7,8 @@ Una aplicación hecha en Python para gestionar horarios académicos con detecci�
 
 ## 💻 Instalación
 
-La aplicación está disponible para Windows, macOS y Linux. No se requiere instalación manual.
+La aplicación está disponible para Windows y Linux.
+MacOS requiere instalación manual.
 
 1.  Ve a la sección de **[Releases](https://github.com/Winareku/PoliBaldeo/releases)** del repositorio en GitHub.
 2.  Descarga el archivo correspondiente a tu sistema operativo.
@@ -115,7 +116,6 @@ Archivo de configuración central que contiene:
 -   Rutas de archivos y extensiones.
 -   Constantes y dimensiones de la interfaz de usuario.
 -   Hojas de estilo por defecto.
--   Parámetros académicos (créditos, semanas, etc.).
 
 ### utils/
 **file_handler.py**: Gestiona las operaciones con archivos `.poli`.
@@ -189,13 +189,13 @@ Para crear un ejecutable independiente:
 
 3.  Instala las dependencias:
     ```bash
-    pip install -r requirements.txt
+    pip install PySide6
     pip install pyinstaller
     ```
 
 4.  Construye el ejecutable:
     ```bash
-    pyinstaller --onefile --windowed --icon=resources/PoliBaldeo.png main.py
+    pyinstaller --onefile --windowed --icon=resources/PoliBaldeo.ico main.py
     ```
 
 El ejecutable se creará en la carpeta `dist/`.
@@ -214,7 +214,6 @@ Este proyecto está bajo la Licencia MIT - consulta el archivo `LICENSE` para m�
 
 ## 🐛 Problemas Conocidos
 
--   La exportación del calendario asume un semestre de 16 semanas.
 -   Los bloques de tiempo están limitados de 7:00 AM a 10:00 PM.
 -   Se omiten los fines de semana.
 
