@@ -19,6 +19,10 @@ var EditModalState = {
   isNew   : false
 };
 
+// Mapa de colores para materias (consistente con planner)
+var popupColorMap = {};
+var popupColorCtr = 0;
+
 // ═══════════════════════════════════════════════════════════════
 //  Helpers de horario e info
 // ═══════════════════════════════════════════════════════════════
@@ -624,6 +628,10 @@ function popupOpenMateriaModal() {
 // ═══════════════════════════════════════════════════════════════
 
 function popupBuildParaleloItem(nombreMateria, nParalelo, data, parentList) {
+  // Obtener el color de la materia
+  var colorIdx = popupColorMap[nombreMateria] || 0;
+  var c = PB_PALETTE[colorIdx];
+
   var item = document.createElement('div');
   item.className = 'paralelo-item';
   item.dataset.paralelo = nParalelo;
@@ -647,6 +655,9 @@ function popupBuildParaleloItem(nombreMateria, nParalelo, data, parentList) {
   var paraleloBadge = document.createElement('span');
   paraleloBadge.className = 'paralelo-badge';
   paraleloBadge.textContent = 'Par. ' + nParalelo;
+  paraleloBadge.style.backgroundColor = c.ac + '1a';
+  paraleloBadge.style.color = c.fg;
+  paraleloBadge.style.border = '1px solid ' + c.ac + '40';
 
   var paraleloProf = document.createElement('span');
   paraleloProf.className = 'paralelo-prof';
@@ -727,9 +738,17 @@ function popupBuildParaleloItem(nombreMateria, nParalelo, data, parentList) {
 // ═══════════════════════════════════════════════════════════════
 
 function popupBuildMateriaCard(nombre, mat) {
+  // Asignar color de la paleta si no existe
+  if (popupColorMap[nombre] === undefined) {
+    popupColorMap[nombre] = (popupColorCtr++) % PB_PALETTE.length;
+  }
+  var colorIdx = popupColorMap[nombre];
+  var c = PB_PALETTE[colorIdx];
+
   var card             = document.createElement('div');
   card.className       = 'materia-card' + (mat.collapsed ? ' collapsed' : '');
   card.dataset.materia = nombre;
+  card.style.setProperty('--mat-ac', c.ac);
 
   var hdr       = document.createElement('div');
   hdr.className = 'materia-header';
@@ -872,6 +891,11 @@ function popupUpdateCounter() {
 }
 
 function popupRender(data) {
+  // Reiniciar mapa de colores si se cargan datos nuevos desde cero
+  // (para mantener consistencia en orden)
+  popupColorMap = {};
+  popupColorCtr = 0;
+
   PopupState.currentData = data || {};
   var materiasList = document.getElementById('materias-list');
   var emptyState   = document.getElementById('empty-state');

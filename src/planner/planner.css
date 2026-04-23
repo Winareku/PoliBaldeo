@@ -232,3 +232,52 @@
   font-size: 13px;
   color: var(--text-sub);
 }
+
+/* Ajuste para input date en dark mode */
+.ics-input[type="date"] {
+  color-scheme: dark;
+}
+.ics-input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}
+
+/* Stepper tipo pastilla (idéntico al de popup) */
+.creditos-stepper {
+  display: flex;
+  align-items: center;
+  background: var(--surface-variant);
+  border-radius: 100px;
+  padding: 2px;
+}
+.creditos-stepper button {
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 100px;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 17px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.creditos-stepper button:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.creditos-value {
+  min-width: 26px;
+  text-align: center;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+/* Icono blanco para el input date */
+.ics-input[type="date"] {
+  color-scheme: dark;
+}
+.ics-input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}

@@ -66,11 +66,13 @@
       </div>
       <div class="ics-field">
         <span class="ics-label">Duración del semestre</span>
-        <div class="ics-weeks-row">
-          <button class="ics-weeks-btn" id="ics-weeks-minus" type="button">−</button>
-          <span class="ics-weeks-val" id="ics-weeks-val">${_icsWeeks}</span>
-          <button class="ics-weeks-btn" id="ics-weeks-plus" type="button">+</button>
-          <span class="ics-weeks-unit">semanas</span>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <div class="creditos-stepper" style="flex: 0 0 auto;">
+            <button id="ics-weeks-minus" type="button">−</button>
+            <span id="ics-weeks-val" class="creditos-value" style="min-width: 32px;">${_icsWeeks}</span>
+            <button id="ics-weeks-plus" type="button">+</button>
+          </div>
+          <span style="font-size: 13px; color: var(--text-sub);">semanas</span>
         </div>
       </div>
     `;
