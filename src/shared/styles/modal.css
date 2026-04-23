@@ -1,0 +1,86 @@
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+  padding: 16px;
+}
+
+.modal-overlay.visible {
+  display: flex;
+}
+
+.modal-card {
+  background: var(--surface);
+  border: 1px solid var(--outline-variant);
+  border-radius: 28px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+
+.modal-header {
+  padding: 20px 22px 14px;
+  border-bottom: 1px solid var(--outline-variant);
+}
+
+.modal-header h2 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.modal-body {
+  padding: 16px 22px;
+  max-height: 450px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  color: var(--text-main);
+}
+
+.modal-body::-webkit-scrollbar {
+  width: 4px;
+}
+.modal-body::-webkit-scrollbar-thumb {
+  background: var(--outline-variant);
+  border-radius: 8px;
+}
+
+.modal-footer {
+  padding: 12px 22px;
+  border-top: 1px solid var(--outline-variant);
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+/* Estilos para inputs dentro de modales */
+.modal-body input,
+.modal-body select,
+.modal-body textarea {
+  background: var(--surface-variant);
+  border: 1px solid var(--outline-variant);
+  color: var(--text-main);
+  border-radius: 12px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.modal-body input:focus,
+.modal-body select:focus,
+.modal-body textarea:focus {
+  border-color: var(--primary);
+  outline: none;
+}
+
+.modal-body button {
+  font-family: inherit;
+}

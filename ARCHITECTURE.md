@@ -7,278 +7,141 @@
 
 ## 1. Project Overview
 
-Polibaldeo is a Chrome Extension that assists students of **ESPOL** (Escuela Superior Politécnica del Litoral) during course enrollment. It operates exclusively on the university's academic portal and provides two core capabilities:
+Polibaldeo es una extensión de Chrome diseñada para asistir a los estudiantes de la **ESPOL** (Escuela Superior Politécnica del Litoral) durante el proceso de matriculación. Opera exclusivamente en el portal académico de la universidad y ofrece dos capacidades principales:
 
-1. **Capture** — A content script injects a button into the course detail page. When clicked, it scrapes the parallel's schedule data and persists it to `chrome.storage.local`.
-2. **Plan** — A standalone planner window reads the stored data, renders a weekly schedule grid, detects time conflicts between parallels, and lets the student select a conflict-free combination.
+1.  **Capture (Captura):** Un script de contenido inyecta un botón en la página de detalles de la materia. Al hacer clic, extrae los datos de horarios del paralelo y los persiste en `chrome.storage.local`.
+2.  **Plan & Organize (Planificación):** Un panel lateral (Side Panel) y una ventana de planificador independiente leen los datos almacenados, renderizan una cuadrícula de horarios semanal, detectan conflictos de tiempo y permiten exportar la selección.
 
 ### Chrome APIs used
 
 | API | Why |
 |---|---|
-| `chrome.storage.local` | Persists all course/parallel data across popup open/close cycles without a backend. Chosen over `sessionStorage` because it survives the popup lifecycle and is accessible from both the content script and the extension pages. |
-| `chrome.runtime.getURL()` | Generates the absolute `chrome-extension://` URL for the planner page before passing it to `chrome.windows.create()`. |
-| `chrome.windows.create()` | Opens the planner as a dedicated popup window (not a tab) to keep the scheduling UI separate from the browsing context. |
-| `chrome.storage.onChanged` | Allows the popup to reactively re-render when `content.js` writes a new parallel while the popup is simultaneously open. |
-| Content Scripts (`content_scripts`) | Declaratively injected at `document_idle` into a single URL pattern. No background/service worker is needed because there is no inter-page messaging — all communication goes through `chrome.storage`. |
+| `chrome.storage.local` | Persiste los datos de materias/paralelos. Accesible desde scripts de contenido, el service worker y las páginas de la extensión. |
+| `chrome.sidePanel` | Mantiene la interfaz de usuario de la extensión abierta de forma persistente en la barra lateral mientras el usuario navega por el portal. |
+| `chrome.action` | Escucha los clics en el icono de la barra de herramientas para abrir el Side Panel. |
+| `chrome.windows.create()` | Abre el planificador principal como una ventana emergente dedicada (no una pestaña) para separar la UI de planificación del contexto de navegación. |
+| `chrome.storage.onChanged` | Permite que la UI se actualice automáticamente cuando el script de contenido registra un nuevo paralelo. |
 
 ---
 
 ## 2. File Tree
 
-```
+```text
 polibaldeo/
-│
-├── manifest.json               # Extension manifest (MV3)
-│
-├── content.js                  # Content script: DOM scraper + button injector
-├── content.css                 # Styles for injected button and toast
-│
-├── shared/                     # ── Shared modules (no DOM dependency) ──
-│   ├── utils.js                # Pure functions: time math, parsing, palette
-│   ├── storage.js              # chrome.storage.local abstraction layer
-│   └── exporter.js             # Single source of truth for .poli file generation
-│
-├── popup/                      # ── Extension popup (toolbar icon click) ──
-│   ├── popup.html              # Shell HTML; defines script load order
-│   ├── popup-ui.js             # DOM renderers: materia cards, paralelo items
-│   └── popup.js                # Orchestrator: button listeners + init
-│
-├── planner/                    # ── Standalone planner window ──
-│   ├── planner.html            # Shell HTML; defines script load order
-│   ├── planner-ui.js           # DOM renderers: schedule grid, accordions, footer
-│   └── planner.js              # Orchestrator: button listeners + init
-│
-└── icons/
-    ├── icon16.png
-    ├── icon48.png
-    └── icon128.png
+├── ARCHITECTURE.md             # Este documento
+├── README.md                   # Documentación del proyecto
+├── src/                        # ── Código Fuente ──
+    ├── manifest.json           # Manifiesto de la extensión (MV3)
+    ├── background.js           # Service Worker: Inicializa el Side Panel
+    ├── content.js              # Script de contenido: Scraper de DOM e inyector
+    ├── content.css             # Estilos para el botón inyectado y notificaciones
+    │
+    ├── icons/                  # Iconos de la extensión
+    │
+    ├── shared/                 # ── Módulos compartidos (sin dependencia de DOM) ──
+    │   ├── utils.js            # Funciones puras: matemáticas de tiempo, paleta de colores
+    │   ├── storage.js          # Capa de abstracción de chrome.storage.local
+    │   ├── exporter.js         # Generación de archivos .poli
+    │   ├── ics-exporter.js     # Generación de archivos iCalendar (.ics)
+    │   │
+    │   ├── components/         # ── Componentes UI reutilizables ──
+    │   │   └── modal.js        # Componente PBModal para crear modales dinámicos
+    │   │
+    │   └── styles/             # ── Hojas de estilo modulares ──
+    │       ├── variables.css   # Variables globales de color y tipografía
+    │       ├── base.css        # Reset y estilos base
+    │       ├── buttons.css     # Componentes de botones reutilizables
+    │       └── modal.css       # Estilos para el modal genérico
+    │
+    ├── popup/                  # ── UI del Side Panel ──
+    │   ├── popup.html          # Estructura HTML y orden de carga de scripts
+    │   ├── popup.css           # Componentes visuales del popup
+    │   ├── popup-layout.css    # Estructura de grid y dimensiones
+    │   ├── popup-ui.js         # Renderizado de tarjetas de materias y paralelos
+    │   └── popup.js            # Orquestador: listeners de botones e importación
+    │
+    └── planner/                # ── Ventana del Planificador ──
+        ├── planner.html        # Estructura HTML de la cuadrícula
+        ├── planner.css         # Componentes visuales del planner
+        ├── planner-layout.css  # Estructura de paneles y grid
+        ├── planner-ui.js       # Renderizado de cuadrícula, acordeones y conflictos
+        ├── planner.js          # Orquestador: lógica de selección y filtros
+        └── test.js             # Validación de lógica de conflictos (off-browser)
 ```
 
 ---
 
 ## 3. Module Map
 
-### `content.js` — DOM Scraper & Entry Point
-- **Context:** Runs inside the ESPOL academic page (`MateriaPlanificada.aspx`).
-- **`extractData()`** Queries specific `#ctl00_contenido_*` element IDs to read subject name, parallel ID, schedule rows, and professor. Handles both pure-theory and theory+practical parallel combinations by detecting `.mostrar.active` tab elements.
-- **`saveData(entry)`** Delegates persistence to `chrome.storage.local.get/set` directly (does not use `shared/storage.js` — content scripts load independently). Merges the new parallel into the existing data tree without overwriting siblings.
-- **`injectButton()`** Appends the "Añadir a Polibaldeo" button next to the subject name label. A `MutationObserver` re-runs `injectButton()` to handle SPAs that replace DOM nodes without a full page reload.
-- **`showToast(msg, type)`** Renders a temporary notification fixed to the bottom-right of the page.
+### `src/background.js` — Service Worker
+Funciona en segundo plano. Su única responsabilidad actual es escuchar el evento `onClicked` de la acción de la extensión para ejecutar `chrome.sidePanel.open`, abriendo la interfaz en la barra lateral del navegador.
+
+### `src/content.js` — Captura de Datos
+Se inyecta en el portal académico. Su función `extractData()` identifica el nombre de la materia, el paralelo (teórico o combinado con práctico), los profesores y las ubicaciones (aulas/bloques). Utiliza un `MutationObserver` para asegurar que el botón de captura se mantenga visible ante cambios dinámicos en el DOM.
+
+### `src/shared/ics-exporter.js` — Exportación a Calendario
+Módulo encargado de transformar la selección del usuario en un archivo `.ics` compatible con Google Calendar u Outlook.
+- **Lógica de Recurrencia:** Utiliza `RRULE` para definir clases semanales durante un periodo determinado (por defecto 18 semanas).
+- **Manejo de Fechas:** Calcula la primera ocurrencia de cada clase basándose en el índice del día (0-4 para Lunes-Viernes) y una fecha de inicio de semestre.
+
+### `src/shared/components/modal.js` — Componente PBModal
+Proporciona una API simple para crear modales dinámicos (`PBModal.create({ title, body, footer })`). Retorna un objeto con métodos `open()`, `close()`, `destroy()` y `getElement(selector)`. Elimina la necesidad de overlays hardcodeados en los HTML, mejorando la mantenibilidad y reduciendo la duplicación de código.
+
+### `src/popup/popup.js` — Orquestador del Side Panel
+Gestiona las acciones principales del panel lateral:
+- **Importación:** Procesa archivos `.poli` externos, parseando el texto para reconstruir el objeto de datos en el almacenamiento local.
+- **Navegación:** Abre el planificador en una ventana popup optimizada (1000x700px).
+- **Sincronización:** Escucha cambios en `chrome.storage.local` para refrescar la lista de materias si se añaden nuevos datos desde una pestaña.
+
+### `src/planner/test.js` — Entorno de Pruebas
+Contiene una implementación simplificada de la lógica de detección de conflictos (`plannerBuildCMap`) y funciones auxiliares de parseo. Permite validar el algoritmo de solapamiento de horarios en un entorno de consola estándar sin necesidad de cargar la extensión completa.
+
+### CSS Modular (`src/shared/styles/`)
+- **`variables.css`**: Centraliza los colores, bordes y tipografía usados en toda la extensión.
+- **`base.css`**: Aplica un reset consistente y estilos base para `html`, `body` y la clase `.sym`.
+- **`buttons.css`**: Define variantes de botones (`.btn`, `.btn-primary`, `.btn-surface`, etc.) reutilizables.
+- **`modal.css`**: Estilos genéricos para overlays y modales, compartidos por todos los diálogos de la extensión.
 
 ---
 
-### `shared/utils.js` — Pure Logic
-No DOM access. No `chrome.*` calls. Safe to load in any context.
+## 4. Data Flow (Explicación)
 
-| Symbol | Type | Description |
-|---|---|---|
-| `PB_GRID_SH / PB_GRID_EH` | `number` | Grid start/end hour (7:00–22:00). |
-| `PB_TOTAL_H / PB_HOUR_PX / PB_MIN_PX / PB_GRID_PX` | `number` | Pixel math constants for schedule grid layout. |
-| `PB_DAY_MAP` | `object` | Maps Spanish day names → column index (0–4). |
-| `PB_PALETTE` | `Array<{bg,fg,ac,dot}>` | 10-color Material 3 Dark palette. Each materia is assigned one index deterministically via `colorCtr`. |
-| `pbTimeToMin(s)` | `function` | Converts `"HH:MM[:SS]"` to minutes relative to `PB_GRID_SH`. |
-| `pbParseH(horarios)` | `function` | Converts raw schedule strings (e.g. `"Lunes 07:00-09:00"`) into `{di, s, e, raw}` slot objects. Filters out malformed or out-of-range entries. |
-| `pbOverlaps(a, b)` | `function` | O(n·m) pairwise check across two slot arrays. Returns `true` on first overlap found. |
-| `pbMatKeys(data)` | `function` | Returns materia keys respecting `_order`, falling back to remaining keys. |
-| `pbParKeys(mat)` | `function` | Returns parallel keys respecting `_pOrder`, falling back to remaining keys. |
+El flujo de información en Polibaldeo sigue un modelo descentralizado basado en el almacenamiento local de Chrome:
+
+1.  **Captura:** Cuando el usuario interactúa con la página de ESPOL, `content.js` extrae la información y la envía directamente a `chrome.storage.local`. No hay comunicación directa (mensajería) entre el script de contenido y la UI; el almacenamiento actúa como la "fuente de verdad".
+2.  **Notificación Reactiva:** El Side Panel (`popup.js`) y el Planificador (`planner.js`) mantienen listeners activos sobre el almacenamiento. En cuanto los datos cambian, estas interfaces activan sus funciones de renderizado para mostrar la nueva materia o paralelo sin necesidad de recargar.
+3.  **Gestión de Estado de UI:** Las preferencias visuales, como si una tarjeta de materia está colapsada o el número de créditos asignado manualmente, se guardan en el mismo objeto de datos para asegurar que la experiencia sea consistente entre el panel lateral y el planificador.
+4.  **Salida de Datos:** Para la exportación, los módulos `exporter.js` e `ics-exporter.js` toman el estado actual del almacenamiento y las selecciones activas en el planificador para generar archivos descargables de forma local mediante Blobs de JavaScript.
 
 ---
 
-### `shared/storage.js` — Data Layer
-Thin wrapper over `chrome.storage.local`. All functions are callback-based (no Promises) to maintain MV3 compatibility without requiring `async/await` polyfills.
+## 5. Script Load Order (Critical)
 
-| Function | Description |
-|---|---|
-| `pbLoadData(cb)` | Reads `polibaldeo_data`. Always calls `cb` with a valid object (never `null`). Falls back to `{ _order: [] }` if key is missing. |
-| `pbSaveData(data, cb?)` | Writes the full data object. Wraps the key automatically. |
-| `pbClearData(cb?)` | Removes `polibaldeo_data` entirely. |
-| `pbAddEntry(entry, cb?)` | High-level write: creates the materia node if absent, pushes the parallel, and calls `pbSaveData`. Used by `content.js` indirectly (content.js has its own inline version due to isolated context). |
+Debido a que el proyecto no utiliza módulos de ES6, el orden de carga en `popup.html` y `planner.html` es vital para evitar errores de referencia.
 
-**Data schema stored in `chrome.storage.local`:**
+### Orden de carga en `popup.html`
 
-```jsonc
-{
-  "_order": ["MATERIA_A", "MATERIA_B"],  // Display order
-  "MATERIA_A": {
-    "creditos": "4",
-    "collapsed": false,
-    "_pOrder": ["101", "101-1"],          // Parallel display order
-    "paralelos": {
-      "101": {
-        "horarios": ["Lunes 07:00-09:00", "Miércoles 07:00-09:00"],
-        "info": "Paralelo Teórico\nProfesor: Juan Pérez"
-      },
-      "101-1": {                           // Theory-practical combo ID: "teorico-practico"
-        "horarios": ["Lunes 07:00-09:00", "Viernes 11:00-13:00"],
-        "info": "Paralelo Teórico\nProfesor: Juan Pérez\n\nParalelo Práctico 1\nUbicación: ..."
-      }
-    }
-  }
-}
-```
+1.  `src/shared/utils.js`: Define constantes globales y funciones matemáticas.
+2.  `src/shared/storage.js`: Proporciona las funciones de lectura/escritura.
+3.  `src/shared/exporter.js`: Funciones de generación de archivos `.poli`.
+4.  `src/shared/components/modal.js`: Componente `PBModal` (requerido por `popup-ui.js`).
+5.  `src/popup/popup-ui.js`: Define el objeto de estado `PopupState` y las funciones de construcción de DOM.
+6.  `src/popup/popup.js`: Ejecuta la inicialización, enlaza eventos y carga los datos iniciales.
+
+### Orden de carga en `planner.html`
+
+1.  `src/shared/utils.js`: Constantes y funciones puras.
+2.  `src/shared/storage.js`: Capa `chrome.storage`.
+3.  `src/shared/ics-exporter.js`: Generación de archivos `.ics`.
+4.  `src/shared/components/modal.js`: Componente `PBModal` (usado por `planner.js` para el modal ICS).
+5.  `src/planner/planner-ui.js`: Define `PlannerState` y funciones de renderizado de grilla y acordeones.
+6.  `src/planner/planner.js`: Orquestador: inicializa, enlaza botones y carga datos.
 
 ---
 
-### `shared/exporter.js` — File Generator
-Single source of truth for `.poli` file format. Previously duplicated in both `popup.js` and `planner.js`; now consumed by both.
+## 6. Extension Permissions
 
-| Function | Signature | Description |
-|---|---|---|
-| `pbGeneratePoliContent` | `(data, selected?) → string` | Builds the UTF-8 + BOM text. If `selected` is provided (Planner mode), only the chosen parallel per materia is included. If `null` (Popup mode), all parallels are exported. |
-| `pbExportPoliFile` | `(data, selected?) → boolean` | Calls `pbGeneratePoliContent`, creates a `Blob`, triggers a download via a temporary `<a>` element. Returns `false` if content is empty. |
-
-**`.poli` file format:**
-```
-MATERIA_NAME|creditos
-paraleloId | Lunes 07:00-09:00; Miércoles 07:00-09:00 | 0 | Paralelo Teórico\nProfesor: ...
-
-MATERIA_NAME_2|creditos
-...
-```
-
----
-
-### `popup/popup-ui.js` — Popup Renderer
-Owns all DOM construction for the popup. Stateful via `PopupState`.
-
-| Symbol | Description |
-|---|---|
-| `PopupState` | `{ currentData, isInternalChange }`. `isInternalChange` is a write-lock flag that prevents `chrome.storage.onChanged` from triggering a redundant re-render after a user-initiated save. |
-| `popupRender(data)` | Full re-render: clears `#materias-list`, rebuilds all materia cards in `_order` sequence. |
-| `popupBuildMateriaCard(nombre, mat)` | Creates the card element with credit stepper, collapse toggle, and up/down reorder controls. |
-| `popupBuildParaleloItem(...)` | Creates the parallel row with professor name, schedule tags, and delete button. |
-| `popupSaveVisualState()` | Reads the current DOM order back into a new data object and persists it. This is the mechanism for reordering (drag-free, arrow-button based). |
-| `popupSetStatus(msg, type)` | Writes a 3-second message to `#status-bar`. |
-| `popupUpdateCounter()` | Updates the `#total-counter` chip in the header. |
-
----
-
-### `popup/popup.js` — Popup Orchestrator
-Pure wiring. No rendering logic.
-
-- Opens the planner via `chrome.windows.create({ url: chrome.runtime.getURL('planner/planner.html') })`.
-- Binds export, clear, and storage change listener.
-- Calls `pbLoadData → popupRender` on init.
-
----
-
-### `planner/planner-ui.js` — Planner Renderer
-Owns all DOM construction for the schedule grid and left panel. Stateful via `PlannerState`.
-
-| Symbol | Description |
-|---|---|
-| `PlannerState` | `{ data, selected, colorMap, colorCtr }`. `selected` maps `materia → paraleloId` for currently active parallels. `colorMap` maps each materia to a stable `PB_PALETTE` index. |
-| `plannerBuildGrid()` | Constructs the static grid skeleton: time gutter labels + 5 day columns with hour/half-hour divider lines. Called once on load. |
-| `plannerDrawBlocks()` | Iterates `selected`, calls `pbParseH` per parallel, and absolutely positions `.ev-block` divs within the appropriate `#dc-{di}` day column. |
-| `plannerRenderLeft()` | Full rebuild of all `.accordion` elements. Calls `plannerBuildCMap()` to classify each parallel as selected / conflicting / disabled / normal before rendering. |
-| `plannerBuildCMap()` | Builds the conflict map. For each non-selected parallel, runs `pbOverlaps` against every other materia's selected slots. O(M·P·S²) where M=materias, P=paralelos, S=slots. |
-| `plannerUpdateFooter()` | Sums credits of selected parallels; shows/hides `#conflict-badge`. |
-| `plannerRefresh()` | Calls `renderLeft → drawBlocks → updateFooter` in sequence. Entry point after any state mutation. |
-
----
-
-### `planner/planner.js` — Planner Orchestrator
-Pure wiring. No rendering logic.
-
-- Binds deselect-all, collapse-all, and export buttons.
-- Export logic: calls `pbExportPoliFile(data, selected)`. If `selected` is empty, falls back to exporting all data.
-- Calls `pbLoadData → plannerBuildGrid → plannerRefresh` on init.
-
----
-
-## 4. Data Flow
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    ESPOL Academic Page                          │
-│                                                                 │
-│  DOM (#ctl00_contenido_*)                                       │
-│       │                                                         │
-│       ▼                                                         │
-│  content.js::extractData()                                      │
-│       │  { materia, paraleloId, horarios, info, creditos }      │
-│       ▼                                                         │
-│  content.js::saveData()                                         │
-│       │                                                         │
-│       ▼                                                         │
-│  chrome.storage.local.set("polibaldeo_data", {...})  ◄──────┐  │
-└──────────────────────────────────────────────────────────────┼──┘
-                                                               │
-           chrome.storage.onChanged fires                      │
-                      │                                        │
-          ┌───────────▼────────────┐                          │
-          │       popup.js         │                          │
-          │  onChanged → render()  │                          │
-          └───────────┬────────────┘                          │
-                      │                                        │
-          ┌───────────▼────────────┐       write back         │
-          │     popup-ui.js        │ ─── saveVisualState() ───┘
-          │  buildMateriaCard()    │     (reorder / credit
-          │  buildParaleloItem()   │      edit / delete)
-          └───────────┬────────────┘
-                      │
-          btn-planner clicked
-          chrome.windows.create()
-                      │
-          ┌───────────▼────────────┐
-          │      planner.js        │
-          │  pbLoadData() → init   │
-          └───────────┬────────────┘
-                      │
-          ┌───────────▼────────────┐
-          │    planner-ui.js       │
-          │  buildGrid()           │
-          │  renderLeft()          │  ◄── user clicks parallel
-          │    buildCMap()         │       PlannerState.selected
-          │  drawBlocks()          │       mutates → refresh()
-          │  updateFooter()        │
-          └────────────────────────┘
-```
-
-> **Key design decision — no `sendMessage`:** All inter-context communication goes through `chrome.storage`. This avoids the need for a background service worker, simplifies the architecture, and means the planner window always reads a consistent snapshot. The tradeoff is that the planner does **not** live-update while open (by design — static enrollment snapshot).
-
----
-
-## 5. Tech Stack
-
-| Layer | Technology | Notes |
-|---|---|---|
-| Extension platform | Chrome MV3 | No background service worker. No ES Modules (`import/export`) — scripts are loaded as globals in explicit order via `<script>` tags in HTML. |
-| Language | Vanilla ES5-compatible JavaScript | `var`, callbacks, no transpiler. Chosen for maximum compatibility and zero build tooling. |
-| Styling | Plain CSS with CSS Custom Properties | Material 3 Dark token palette defined in `:root`. No CSS preprocessor. |
-| Typography | [Plus Jakarta Sans](https://fonts.google.com/specimen/Plus+Jakarta+Sans) | Loaded from Google Fonts CDN at runtime. |
-| Icons | [Material Symbols Outlined](https://fonts.google.com/icons) | Variable font loaded from Google Fonts. Rendered via `.sym` class + ligature text content (e.g. `calendar_month`). |
-| Storage | `chrome.storage.local` | ~5MB quota. Synchronous-feel via callbacks. No IndexedDB, no external DB. |
-| Build toolchain | None | Source files are loaded directly by Chrome. No Webpack, Vite, Rollup, or TypeScript compilation step. |
-| Dependencies | None (zero `node_modules`) | No React, no jQuery, no utility libraries. |
-
----
-
-## 6. Script Load Order (Critical)
-
-Because there are no ES Modules, globals must be available before consumers load. Both HTML files enforce this exact order:
-
-```
-1. shared/utils.js      → defines PB_* constants + pb* pure functions
-2. shared/storage.js    → defines pbLoadData, pbSaveData, pbClearData, pbAddEntry
-3. shared/exporter.js   → defines pbGeneratePoliContent, pbExportPoliFile
-4. {context}-ui.js      → defines PlannerState/PopupState + all render functions
-5. {context}.js         → runs the orchestrator IIFE, wires listeners, calls init
-```
-
-Swapping any two steps will produce `ReferenceError` at runtime.
-
----
-
-## 7. Extension Permissions
-
-```jsonc
-"permissions": [
-  "storage",     // chrome.storage.local read/write
-  "activeTab",   // Reserved; not currently used by content script (injected declaratively)
-  "windows"      // chrome.windows.create() for the planner popup
-]
-```
-
-The content script is declaratively injected via `content_scripts` in the manifest. No `scripting` permission is needed because `chrome.scripting.executeScript()` is never called programmatically.
+- **`storage`**: Acceso persistente a los datos de planificación.
+- **`sidePanel`**: Requerido para utilizar la API de panel lateral de Chrome.
+- **`windows`**: Permite la creación de la ventana emergente del planificador.
+- **`activeTab`**: Permite interactuar con la pestaña donde se abre el side panel.

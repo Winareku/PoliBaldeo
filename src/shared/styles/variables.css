@@ -1,0 +1,22 @@
+:root {
+  --bg: #121212;
+  --surface: #1e1e1e;
+  --surface-variant: #2c2c2c;
+
+  --primary: #9ecaff;
+  --on-primary: #003258;
+
+  --primary-container: #1e2b3a;
+  --on-primary-container: #d1e4ff;
+
+  --text-main: #e5e3ef;
+  --text-sub: #c5c5d4;
+
+  --outline: #8b8d9b;
+  --outline-variant: #3a3b47;
+
+  --error: #ffb4ab;
+
+  --radius-card: 24px;
+  --radius-pill: 100px;
+}

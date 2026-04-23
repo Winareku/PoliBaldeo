@@ -160,8 +160,7 @@ function plannerDrawBlocks() {
         'color:'      + c.fg + ';' +
         'border:1px solid ' + c.ac + '33;' +
         'border-left:3px solid ' + c.ac + ';';
-      var shortName  = m.length > 20 ? m.slice(0, 18) + '…' : m;
-      blk.innerHTML  = '<div>' + shortName + '</div><div style="opacity:.55;font-size:8.5px">P' + pId + '</div>';
+      blk.innerHTML  = '<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' + m + '</div><div style="opacity:.55;font-size:8.5px">P' + pId + '</div>';
       blk.title      = m + ' · Par. ' + pId + '\n' + sl.raw;
       col.appendChild(blk);
     });
@@ -242,17 +241,25 @@ function plannerRenderLeft() {
     var body = document.createElement('div');
     body.className = 'acc-body';
 
-    pbParKeys(mat).forEach(function(pId) {
+    var pKeys = pbParKeys(mat);
+    if (pKeys.length === 0) {
+      var emptyMsg = document.createElement('div');
+      emptyMsg.textContent = 'Sin paralelos';
+      emptyMsg.style.cssText = 'padding:4px 10px; color:var(--on-surf-var); font-size:11px; font-style:italic; text-align:center; opacity:0.7;';
+      body.appendChild(emptyMsg);
+    } else {
+      pKeys.forEach(function(pId) {
       var pd = mat.paralelos && mat.paralelos[pId];
       if (!pd) return;
 
       var isSel      = (selPar === pId);
-      var isConflict = !isSel && cmap[m + '|' + pId];
-      var isDisabled = !isSel && selPar !== null && !isConflict;
+      var hasConflict = cmap[m + '|' + pId];
+      var isConflictUI = !isSel && hasConflict;
+      var isDisabled = !isSel && selPar !== null && !hasConflict;
 
       var cls  = 'par-item';
       if (isSel)      cls += ' par-sel';
-      if (isConflict) cls += ' par-conflict';
+      if (isConflictUI) cls += ' par-conflict';
       else if (isDisabled) cls += ' par-off';
 
       var cbCls = 'par-cb' + (isSel ? ' cb-on' : '');
@@ -273,9 +280,9 @@ function plannerRenderLeft() {
           (prof ? '<div class="par-prof">' + prof + '</div>' : '') +
           '<div class="par-slots">' + (slotsHtml || '<span class="slot-pill">Sin horario</span>') + '</div>' +
         '</div>' +
-        (isConflict ? '<span class="sym conflict-icon">warning</span>' : '');
+        (hasConflict ? '<span class="sym conflict-icon">warning</span>' : '');
 
-      if (!isConflict && !isDisabled) {
+      if (!isConflictUI && !isDisabled) {
         item.addEventListener('click', function(ev) {
           ev.stopPropagation();
           var accordion = this.closest('.accordion');
@@ -290,28 +297,18 @@ function plannerRenderLeft() {
             PlannerState.selected[materia] = pId;
           }
 
-          // 2. Colapsar todos los acordeones excepto el actual
-          PlannerState.allCollapsed = true;
-          for (var mat in PlannerState.collapsedMap) {
-            PlannerState.collapsedMap[mat] = true;
-          }
-          PlannerState.collapsedMap[materia] = false; // expandir el actual
-          PlannerState.lastExpanded = materia;
-
-          // 3. Actualizar UI de forma incremental (sin reconstruir todo)
+          // 2. Actualizar UI de forma incremental (sin tocar el estado de colapso)
           updateLeftPanelState();
 
-          // 4. Redibujar bloques y footer
+          // 3. Redibujar bloques y footer
           plannerDrawBlocks();
           plannerUpdateFooter();
-
-          // 5. Limpiar lastExpanded (no necesario para futuros toggles globales)
-          PlannerState.lastExpanded = null;
         });
       }
 
       body.appendChild(item);
     });
+    }
 
     acc.appendChild(body);
     scroll.appendChild(acc);
@@ -343,12 +340,13 @@ function updateLeftPanelState() {
     getParaleloItems(acc).forEach(function(item) {
       var pId = item.getAttribute('data-paralelo');
       var isSel      = (selPar === pId);
-      var isConflict = !isSel && cmap[materia + '|' + pId];
-      var isDisabled = !isSel && !!selPar && !isConflict;
+      var hasConflict = cmap[materia + '|' + pId];
+      var isConflictUI = !isSel && hasConflict;
+      var isDisabled = !isSel && !!selPar && !hasConflict;
 
       // Actualizar clases del ítem
       item.classList.toggle('par-sel', isSel);
-      item.classList.toggle('par-conflict', isConflict);
+      item.classList.toggle('par-conflict', isConflictUI);
       item.classList.toggle('par-off', isDisabled);
 
       // Actualizar checkbox visual
@@ -359,7 +357,7 @@ function updateLeftPanelState() {
 
       // Actualizar icono de conflicto (puede existir o no)
       var conflictIcon = item.querySelector('.conflict-icon');
-      if (isConflict) {
+      if (hasConflict) {
         if (!conflictIcon) {
           conflictIcon = document.createElement('span');
           conflictIcon.className = 'sym conflict-icon';
@@ -390,7 +388,7 @@ function plannerUpdateFooter() {
     var parts = k.split('|');
     var m     = parts[0];
     var p     = parts[1];
-    return cmap[k] && PlannerState.selected[m] !== p;
+    return cmap[k] && PlannerState.selected[m] === p;
   });
   document.getElementById('conflict-badge').classList.toggle('show', anyConflict);
 }

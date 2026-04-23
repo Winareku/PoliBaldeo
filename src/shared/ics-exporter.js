@@ -33,15 +33,22 @@ function _icsDateStr(d) {
  * @param {number} di  Índice 0–4
  * @returns {Date}
  */
-function _icsNextWeekday(di) {
-  // di: 0=Lun, 1=Mar … 4=Vie
-  // JS: 0=Dom, 1=Lun … 6=Sáb  →  Lun=1, Mar=2 … Vie=5
+/**
+ * Devuelve la fecha del primer día de la semana 'di' (0=Lun…4=Vie)
+ * a partir de una fecha de inicio del semestre.
+ * Si semStartDate no se provee, usa la próxima ocurrencia desde hoy.
+ * @param {number} di              Índice 0–4
+ * @param {Date}   [semStartDate]  Fecha de inicio del semestre
+ * @returns {Date}
+ */
+function _icsFirstOccurrence(di, semStartDate) {
+  // di: 0=Lun … 4=Vie  →  JS weekday: 1=Lun … 5=Vie
   var jsTarget = di + 1;
-  var today    = new Date();
-  var jsToday  = today.getDay();          // 0=Dom … 6=Sáb
-  var diff     = (jsTarget - jsToday + 7) % 7 || 7; // 0 → 7 (siempre futuro)
-  var result   = new Date(today);
-  result.setDate(today.getDate() + diff);
+  var base     = semStartDate ? new Date(semStartDate) : new Date();
+  var jsBase   = base.getDay();                       // 0=Dom … 6=Sáb
+  var diff     = (jsTarget - jsBase + 7) % 7;        // 0 si ya es ese día
+  var result   = new Date(base);
+  result.setDate(base.getDate() + diff);
   return result;
 }
 
@@ -84,11 +91,15 @@ function _icsFold(lines) {
  * Genera el contenido completo de un archivo .ics.
  * Solo incluye los paralelos presentes en el mapa `selected`.
  *
- * @param {object} data      polibaldeo_data completo
- * @param {object} selected  { materia: paraleloId } del Planner
- * @returns {string}         Contenido UTF-8 del archivo .ics
+ * @param {object} data        polibaldeo_data completo
+ * @param {object} selected    { materia: paraleloId } del Planner
+ * @param {Date}   [semStart]  Fecha de inicio del semestre. Si se omite, usa hoy.
+ * @param {number} [weeks]     Número de semanas. Por defecto ICS_WEEKS.
+ * @returns {string}           Contenido UTF-8 del archivo .ics
  */
-function pbGenerateICS(data, selected) {
+function pbGenerateICS(data, selected, semStart, weeks) {
+  var totalWeeks = (typeof weeks === 'number' && weeks > 0) ? weeks : ICS_WEEKS;
+
   var lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -113,8 +124,8 @@ function pbGenerateICS(data, selected) {
     var desc  = _icsEscape((pd.info || '').replace(/\\n/g, '\n'));
 
     slots.forEach(function(sl, idx) {
-      var startDate  = _icsNextWeekday(sl.di);
-      var dateStr    = _icsDateStr(startDate);
+      var firstDate  = _icsFirstOccurrence(sl.di, semStart || null);
+      var dateStr    = _icsDateStr(firstDate);
       var startTime  = _icsTimeStr(sl.s);
       var endTime    = _icsTimeStr(sl.e);
       var byday      = ICS_BYDAY[sl.di];
@@ -125,7 +136,7 @@ function pbGenerateICS(data, selected) {
       lines.push('SUMMARY:'  + _icsEscape(m + ' \u00b7 Par. ' + pId));
       lines.push('DTSTART:'  + dateStr + 'T' + startTime);
       lines.push('DTEND:'    + dateStr + 'T' + endTime);
-      lines.push('RRULE:FREQ=WEEKLY;BYDAY=' + byday + ';COUNT=' + ICS_WEEKS);
+      lines.push('RRULE:FREQ=WEEKLY;BYDAY=' + byday + ';COUNT=' + totalWeeks);
       lines.push('DESCRIPTION:' + desc);
       lines.push('END:VEVENT');
     });
@@ -137,18 +148,20 @@ function pbGenerateICS(data, selected) {
 
 /**
  * Dispara la descarga del archivo .ics en el navegador.
- * @param {object} data      polibaldeo_data completo
- * @param {object} selected  Mapa de selecciones del Planner
- * @returns {boolean}        false si no había paralelos seleccionados
+ * @param {object} data        polibaldeo_data completo
+ * @param {object} selected    Mapa de selecciones del Planner
+ * @param {Date}   [semStart]  Fecha de inicio del semestre
+ * @param {number} [weeks]     Número de semanas
+ * @returns {boolean}          false si no había paralelos seleccionados
  */
-function pbExportICSFile(data, selected) {
+function pbExportICSFile(data, selected, semStart, weeks) {
   // Verificar que haya al menos una selección
   var hasSelection = selected && Object.keys(selected).some(function(m) {
     return !!selected[m];
   });
   if (!hasSelection) return false;
 
-  var content = pbGenerateICS(data, selected);
+  var content = pbGenerateICS(data, selected, semStart, weeks);
   var blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
   var a    = document.createElement('a');
   a.href     = URL.createObjectURL(blob);

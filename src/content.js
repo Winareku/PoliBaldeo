@@ -9,7 +9,10 @@
 
     const hasPracticos = document.querySelectorAll('a.mostrar').length > 0;
     let idCombinado = teorico;
-    let infoExtra = "Paralelo Teórico\nProfesor: " + (document.querySelector("#ctl00_contenido_LabelProfesor")?.textContent.trim() || "No asignado");
+    
+    // 1. Obtener Profesor Principal
+    let prof = document.querySelector("#ctl00_contenido_LabelProfesor")?.textContent.trim() || "";
+    let ubicacion = "";
     let practicoContainer = null;
 
     if (hasPracticos) {
@@ -24,22 +27,50 @@
     }
 
     const horarios = [];
+
+    // 2. Extraer horarios y ubicación del Teórico
     const rowsTeorico = document.querySelectorAll("#ctl00_contenido_TableHorarios tbody tr");
     rowsTeorico.forEach(row => {
       const cols = row.querySelectorAll("td");
       if (cols.length >= 3) {
         horarios.push(`${cols[0].textContent.trim()} ${cols[1].textContent.trim()}-${cols[2].textContent.trim()}`);
+        
+        // La columna 3 es Aula, la 4 es el Bloque/Campus
+        if (!ubicacion && cols.length >= 5) {
+            ubicacion = `${cols[3].textContent.trim()} ${cols[4].textContent.trim()}`.trim();
+        }
       }
     });
 
+    // 3. Extraer horarios, profesor y ubicación del Práctico
     if (practicoContainer) {
-      practicoContainer.querySelectorAll("table tbody tr").forEach(row => {
+      // Buscar si el práctico tiene un profesor distinto (extraerlo sin la palabra "Profesor:")
+      const profCell = Array.from(practicoContainer.querySelectorAll("td")).find(td => td.textContent.includes("Profesor:"));
+      if (profCell) {
+          let profPrac = profCell.textContent.replace("Profesor:", "").replace(/\u00a0/g, " ").trim();
+          if (profPrac && profPrac !== prof) {
+              // Si es distinto, los unimos con un slash "/"
+              prof = prof ? `${prof} / ${profPrac}` : profPrac; 
+          }
+      }
+
+      // Extraer horarios y ubicación del práctico
+      practicoContainer.querySelectorAll("table.display tbody tr").forEach(row => {
         const cols = row.querySelectorAll("td");
         if (cols.length >= 3) {
           horarios.push(`${cols[0].textContent.trim()} ${cols[1].textContent.trim()}-${cols[2].textContent.trim()}`);
+          
+          if (!ubicacion && cols.length >= 5) {
+              ubicacion = `${cols[3].textContent.trim()} ${cols[4].textContent.trim()}`.trim();
+          }
         }
       });
-      infoExtra += "\n\nParalelo Práctico " + idCombinado.split('-')[1] + "\nUbicación: " + (practicoContainer.querySelector("td")?.textContent.trim() || "Ver detalle");
+    }
+
+    // 4. Construir infoExtra con formato estricto para el Modal de Edición
+    let infoExtra = `Profesor: ${prof || "No asignado"}`;
+    if (ubicacion) {
+        infoExtra += `\nUbicación: ${ubicacion}`;
     }
 
     return {
@@ -47,7 +78,7 @@
       paraleloId: idCombinado,
       horarios,
       info: infoExtra,
-      creditos: "0"
+      creditos: "0" // Los créditos se manejan luego en la UI
     };
   }
 

@@ -11,7 +11,7 @@
 var PB_GRID_SH    = 7;          // Hora de inicio de la grilla
 var PB_GRID_EH    = 22;         // Hora de fin
 var PB_TOTAL_H    = PB_GRID_EH - PB_GRID_SH; // 15 horas
-var PB_HOUR_PX    = 40;         // Píxeles por hora
+var PB_HOUR_PX    = 90;         // Píxeles por hora
 var PB_MIN_PX     = PB_HOUR_PX / 60;
 var PB_GRID_PX    = PB_TOTAL_H * PB_HOUR_PX;
 

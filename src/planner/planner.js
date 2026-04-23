@@ -15,8 +15,8 @@
       PlannerState.data = data;
       plannerBuildGrid();
       plannerRefresh();
-      plannerInitResizeObserver();   // auto-ocultar calendario al redimensionar
-      plannerApplyCalendarVisibility(); // estado inicial
+      plannerInitResizeObserver();
+      plannerApplyCalendarVisibility();
     });
   }
 
@@ -27,33 +27,109 @@
     plannerRefresh();
   };
 
-  // Colapsar / Expandir (toggle)
   document.getElementById('btn-collapse-all').onclick = plannerToggleCollapseAll;
 
-  // Descargar .ics
-  document.getElementById('btn-export-ics').onclick = function() {
-    var ok = pbExportICSFile(PlannerState.data, PlannerState.selected);
-    if (!ok) {
-      // Toast visual si no hay selección
-      var badge = document.getElementById('conflict-badge');
-      if (badge) {
-        var prev = badge.textContent;
-        badge.textContent = '⚠ Selecciona al menos un paralelo';
-        badge.classList.add('show');
-        setTimeout(function() {
-          badge.textContent = prev;
-          badge.classList.remove('show');
-        }, 2500);
+  // ── Modal de exportación ICS (con PBModal) ───────────────────
+
+  var _icsWeeks = 18;
+
+  function _plannerWarnBadge(msg) {
+    var badge = document.getElementById('conflict-badge');
+    if (!badge) return;
+    var prevHTML = badge.innerHTML;
+    badge.innerHTML = '<span class="sym">warning</span> ' + msg;
+    badge.classList.add('show');
+    setTimeout(function() {
+      badge.innerHTML = prevHTML;
+      if (typeof plannerUpdateFooter === 'function') {
+        plannerUpdateFooter();
+      } else {
+        badge.classList.remove('show');
       }
+    }, 2500);
+  }
+
+  function _icsOpenModal() {
+    var hasSelection = PlannerState.selected &&
+      Object.keys(PlannerState.selected).some(function(m) {
+        return !!PlannerState.selected[m];
+      });
+    if (!hasSelection) {
+      _plannerWarnBadge('Selecciona al menos un paralelo');
+      return;
     }
-  };
+
+    var bodyHTML = `
+      <div class="ics-field">
+        <label class="ics-label" for="ics-start-date">Fecha de inicio del semestre</label>
+        <input type="date" class="ics-input" id="ics-start-date" />
+      </div>
+      <div class="ics-field">
+        <span class="ics-label">Duración del semestre</span>
+        <div class="ics-weeks-row">
+          <button class="ics-weeks-btn" id="ics-weeks-minus" type="button">−</button>
+          <span class="ics-weeks-val" id="ics-weeks-val">${_icsWeeks}</span>
+          <button class="ics-weeks-btn" id="ics-weeks-plus" type="button">+</button>
+          <span class="ics-weeks-unit">semanas</span>
+        </div>
+      </div>
+    `;
+
+    var modal = PBModal.create({
+      title: 'Exportar a Calendario',
+      body: bodyHTML,
+      footer: `
+        <button class="btn btn-outline" id="ics-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="ics-confirm">
+          <span class="sym" style="font-size:16px;vertical-align:middle;margin-right:4px">download</span>Descargar .ics
+        </button>
+      `
+    });
+
+    modal.open();
+
+    var weeksSpan = modal.getElement('#ics-weeks-val');
+    var dateInput = modal.getElement('#ics-start-date');
+
+    modal.getElement('#ics-weeks-minus').onclick = function() {
+      if (_icsWeeks > 1) {
+        _icsWeeks--;
+        weeksSpan.textContent = _icsWeeks;
+      }
+    };
+    modal.getElement('#ics-weeks-plus').onclick = function() {
+      if (_icsWeeks < 52) {
+        _icsWeeks++;
+        weeksSpan.textContent = _icsWeeks;
+      }
+    };
+
+    modal.getElement('#ics-cancel').onclick = function() {
+      modal.destroy();
+    };
+
+    modal.getElement('#ics-confirm').onclick = function() {
+      var dateVal = dateInput.value;
+      var semStart = dateVal ? new Date(dateVal + 'T00:00:00') : null;
+
+      var ok = pbExportICSFile(PlannerState.data, PlannerState.selected, semStart, _icsWeeks);
+      if (ok) {
+        modal.destroy();
+      } else {
+        _plannerWarnBadge('Selecciona al menos un paralelo');
+        modal.destroy();
+      }
+    };
+
+    dateInput.focus();
+  }
+
+  document.getElementById('btn-export-ics').onclick = _icsOpenModal;
 
   // Mostrar / Ocultar calendario
   document.getElementById('btn-toggle-calendar').onclick = plannerToggleCalendar;
 
   // ── Arranque ─────────────────────────────────────────────────
-
   init();
 
 })();
-
