@@ -81,6 +81,35 @@ function plannerBuildCMap() {
   return cmap;
 }
 
+/**
+ * Devuelve un arreglo con los nombres de las materias seleccionadas
+ * que conflictúan con el paralelo (materia, pId).
+ * @param {string} materia 
+ * @param {string} pId 
+ * @returns {string[]}
+ */
+function getConflictingMaterialsForParallel(materia, pId) {
+  var data = PlannerState.data;
+  var mat = data[materia];
+  if (!mat || !mat.paralelos || !mat.paralelos[pId]) return [];
+  var slots = pbParseH(mat.paralelos[pId].horarios);
+  var conflicting = [];
+
+  Object.keys(PlannerState.selected).forEach(function(sm) {
+    if (sm === materia) return;
+    var selPId = PlannerState.selected[sm];
+    if (!selPId) return;
+    var selData = data[sm];
+    if (!selData || !selData.paralelos || !selData.paralelos[selPId]) return;
+    var selSlots = pbParseH(selData.paralelos[selPId].horarios);
+    if (pbOverlaps(slots, selSlots)) {
+      conflicting.push(sm);
+    }
+  });
+
+  return conflicting;
+}
+
 // ── Grilla de horario ────────────────────────────────────────
 
 /** Construye la estructura estática de columnas y líneas de la grilla. */
@@ -282,6 +311,15 @@ function plannerRenderLeft() {
         '</div>' +
         (hasConflict ? '<span class="sym conflict-icon">warning</span>' : '');
 
+      // Si hay conflicto, añadir tooltip con las materias conflictivas
+      if (hasConflict) {
+        var conflictIcon = item.querySelector('.conflict-icon');
+        if (conflictIcon) {
+          var conflictingMats = getConflictingMaterialsForParallel(m, pId);
+          conflictIcon.title = 'Conflicto con: ' + conflictingMats.join(', ');
+        }
+      }
+
       if (!isConflictUI && !isDisabled) {
         item.addEventListener('click', function(ev) {
           ev.stopPropagation();
@@ -364,6 +402,9 @@ function updateLeftPanelState() {
           conflictIcon.textContent = 'warning';
           item.appendChild(conflictIcon);
         }
+        // Actualizar tooltip con las materias conflictivas
+        var conflictingMats = getConflictingMaterialsForParallel(materia, pId);
+        conflictIcon.title = 'Conflicto con: ' + conflictingMats.join(', ');
       } else if (conflictIcon) {
         conflictIcon.remove();
       }
@@ -408,45 +449,31 @@ function plannerFullRefresh() {
 
 // Versión mantenida por compatibilidad con planner.js
 function plannerRefresh() {
-  // Si ya hay acordeones en el DOM y los datos no han cambiado
-  // en estructura, podríamos usar la actualización incremental.
-  // Pero como planner.js llama a plannerRefresh() sin contexto,
-  // optamos por hacer la incremental si el DOM ya está poblado.
   var existingAccordions = getAccordions();
   if (existingAccordions.length > 0) {
-    // Actualización incremental
     updateLeftPanelState();
     plannerDrawBlocks();
     plannerUpdateFooter();
   } else {
-    // Primera carga
     plannerFullRefresh();
   }
 }
 
 // ── Toggle colapsar / expandir acordeones ────────────────────
 
-/**
- * Alterna entre colapsar todos los acordeones y expandirlos.
- * Actualiza el ícono del botón para reflejar la acción disponible.
- */
 function plannerToggleCollapseAll() {
   PlannerState.allCollapsed = !PlannerState.allCollapsed;
 
-  // Actualizar mapa individual
   pbMatKeys(PlannerState.data).forEach(function(m) {
     PlannerState.collapsedMap[m] = PlannerState.allCollapsed;
   });
-  // Si había una expansión forzada por selección, la limpiamos
   PlannerState.lastExpanded = null;
 
-  // Aplicar clases directamente en el DOM
   getAccordions().forEach(function(acc) {
     var materia = acc.getAttribute('data-materia');
     acc.classList.toggle('collapsed', PlannerState.collapsedMap[materia]);
   });
 
-  // Actualizar botón
   var btn = document.getElementById('btn-collapse-all');
   if (btn) {
     btn.title = PlannerState.allCollapsed ? 'Expandir todo' : 'Colapsar todo';

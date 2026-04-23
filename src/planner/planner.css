@@ -69,8 +69,15 @@
   background: color-mix(in srgb, var(--mat-ac, var(--primary)) 12%, transparent);
   border-color: var(--mat-ac, var(--primary));
 }
-.par-item.par-conflict { opacity: 0.3; pointer-events: none; }
-.par-item.par-off { opacity: 0.45; pointer-events: none; }
+
+.par-item.par-conflict { 
+  opacity: 0.3; 
+  cursor: not-allowed; 
+}
+.par-item.par-off { 
+  opacity: 0.45; 
+  cursor: default; 
+}
 
 .par-cb {
   width: 20px; height: 20px;
