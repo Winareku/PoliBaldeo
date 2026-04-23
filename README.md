@@ -8,13 +8,14 @@
 
 ## 🚀 Características Principales
 
-  - **Captura Inteligente**: Inyecta un botón "Añadir" directamente en el detalle de las materias del portal académico para extraer datos de horarios automáticamente.
-  - **Planificador Visual (Planner)**: Interfaz dedicada con una rejilla semanal para visualizar la carga académica.
-  - **Detección de Conflictos**: Sistema automático que identifica y resalta cruces de horarios entre paralelos seleccionados, mostrando además las materias conflictivas.
+  - **Captura Inteligente**: Inyecta un botón "Añadir" directamente en el detalle de las materias del portal académico para extraer datos de horarios, exámenes (parcial, final y mejoramiento), profesor y ubicación automáticamente.
+  - **Planificador Visual (Planner)**: Interfaz dedicada con una rejilla semanal para visualizar la carga académica. Incluye una vista alternativa para mostrar únicamente los exámenes parciales.
+  - **Detección de Conflictos**: Sistema automático que identifica y resalta cruces de horarios entre paralelos seleccionados, incluyendo conflictos entre exámenes. Muestra las materias conflictivas al pasar el ratón sobre el icono de advertencia.
   - **Zero-Backend**: Los datos se gestionan localmente en el navegador mediante `chrome.storage.local`, garantizando privacidad y rapidez.
   - **Exportación Versátil**:
-      - Genera archivos `.poli` para el uso en la versión Legacy (Python).
+      - Genera archivos `.poli` en formato JSON para respaldo y transferencia.
       - Exporta a formato iCalendar (`.ics`) para sincronizar con Google Calendar, Outlook o Apple Calendar.
+      - Captura la vista del horario como imagen PNG, lista para compartir.
   - **Interfaz Material 3 Dark**: Diseño oscuro moderno con paleta de colores consistente, toasts unificados y modales dinámicos.
   - **Toasts unificados**: Notificaciones visuales con botón de cierre y opción de deshacer.
   - **Colores por materia**: Cada materia tiene un color distintivo en el popup y el planner, siguiendo una paleta armonizada.
@@ -41,6 +42,7 @@ La extensión utiliza una arquitectura modular de scripts compartidos (Vanilla J
   - `shared/`: Lógica persistente y utilitarios puros (almacenamiento, exportadores, constantes).
     - `styles/`: Hojas de estilo modulares (variables, base, botones, modal).
     - `components/`: Componentes UI reutilizables (modal dinámico).
+    - `libs/`: Librerías de terceros (html-to-image para captura de imagen).
   - `content/`: Script inyectado en el portal académico para el raspado de datos (Scraping).
   - `planner/`: Interfaz y lógica del orquestador de horarios (HTML, CSS, JS).
   - `popup/`: Menú rápido de la extensión para acceso directo al Planner y gestión de datos (HTML, CSS, JS).
@@ -53,8 +55,9 @@ Para garantizar la disponibilidad de variables globales, los scripts siguen este
 2.  `storage.js` (Capa de persistencia)
 3.  `exporter.js` / `ics-exporter.js` (Lógica de archivos)
 4.  `modal.js` (Componente de modales)
-5.  `*-ui.js` (Renderizado de interfaz)
-6.  `*.js` (Orquestador y listeners)
+5.  `html-to-image.min.js` (Captura de imagen, solo en planner)
+6.  `*-ui.js` (Renderizado de interfaz)
+7.  `*.js` (Orquestador y listeners)
 
 ## 🤝 Contribuciones
 
@@ -79,6 +82,10 @@ Este proyecto utiliza los siguientes recursos de terceros, cuyas licencias son c
 - **Material Symbols** – Íconos  
   Copyright Google Inc.  
   Licencia: [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+
+- **html-to-image** – Captura de DOM a imagen PNG  
+  Copyright (c) 2023 bubkoo  
+  Licencia: [MIT License](https://github.com/bubkoo/html-to-image/blob/main/LICENSE)
 
 ## 📮 Soporte
 

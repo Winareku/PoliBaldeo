@@ -1,13 +1,13 @@
 /* ============================================================
    Polibaldeo – shared/exporter.js
-   Fuente única de generación del archivo .poli.
+   Fuente única de generación del archivo .poli (ahora JSON).
    Requiere: utils.js (pbMatKeys, pbParKeys)
    ============================================================ */
 
 "use strict";
 
 /**
- * Genera el contenido textual del archivo .poli a partir de los
+ * Genera el contenido JSON del archivo .poli a partir de los
  * datos almacenados y un mapa opcional de selecciones del Planner.
  *
  * @param {object} data       Objeto completo de polibaldeo_data.
@@ -15,38 +15,31 @@
  *                            (si se pasa, sólo se exportan los paralelos
  *                            seleccionados; si es null/undefined se
  *                            exporta todo).
- * @returns {string}          Contenido UTF-8 del archivo (con BOM).
+ * @returns {string}          Cadena JSON (UTF-8, con formato legible).
  */
 function pbGeneratePoliContent(data, selected) {
-  var mks    = pbMatKeys(data);
-  var blocks = [];
-
-  mks.forEach(function(m) {
-    var mat   = data[m];
-    var pKeys = pbParKeys(mat);
-
-    // Si hay selección, filtrar; de lo contrario exportar todos
-    if (selected && typeof selected === 'object') {
+  var exportData = data;
+  
+  if (selected && typeof selected === 'object') {
+    exportData = { _order: [] };
+    pbMatKeys(data).forEach(function(m) {
       var selPar = selected[m];
-      if (!selPar) return;               // materia sin selección → omitir
-      pKeys = pKeys.filter(function(p) { return p === selPar; });
-      if (!pKeys.length) return;
-    }
-
-    var lines = [m + '|' + (mat.creditos || '0')];
-    pKeys.forEach(function(p) {
-      var pd = mat.paralelos[p];
-      if (!pd) return;
-      var horariosStr = (pd.horarios || []).join('; ');
-      var infoStr     = (pd.info     || '').replace(/\n/g, '\\n');
-      lines.push(p + ' | ' + horariosStr + ' | 0 | ' + infoStr);
+      if (!selPar) return;
+      if (!exportData[m]) {
+        exportData[m] = {
+          creditos: data[m].creditos,
+          paralelos: {},
+          _pOrder: [],
+          collapsed: data[m].collapsed
+        };
+      }
+      exportData[m].paralelos[selPar] = data[m].paralelos[selPar];
+      exportData[m]._pOrder.push(selPar);
+      exportData._order.push(m);
     });
+  }
 
-    blocks.push(lines.join('\n'));
-  });
-
-  // BOM + bloques separados por línea en blanco
-  return '\uFEFF' + blocks.join('\n\n');
+  return JSON.stringify(exportData, null, 2);
 }
 
 /**
@@ -54,16 +47,21 @@ function pbGeneratePoliContent(data, selected) {
  *
  * @param {object} data       Objeto polibaldeo_data.
  * @param {object} [selected] Mapa de selecciones (Planner) o undefined (Popup).
- * @returns {boolean}         false si no había datos que exportar.
+ * @returns {boolean}         true si se exportó correctamente.
  */
 function pbExportPoliFile(data, selected) {
-  var content = pbGeneratePoliContent(data, selected);
-  // Tras quitar el BOM, si sólo queda espacio → sin datos
-  if (!content.replace('\uFEFF', '').trim()) return false;
+  // Verificar que haya al menos una materia exportable
+  var mks     = pbMatKeys(data);
+  var hasData = mks.some(function(m) {
+    if (selected) return !!selected[m];
+    return true; // todas las materias si no hay selección
+  });
+  if (!hasData) return false;
 
-  var blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-  var a    = document.createElement('a');
-  a.href     = URL.createObjectURL(blob);
+  var content = pbGeneratePoliContent(data, selected);
+  var blob = new Blob([content], { type: 'application/json;charset=utf-8' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
   a.download = 'horario_' + new Date().toISOString().slice(0, 10) + '.poli';
   a.click();
   URL.revokeObjectURL(a.href);

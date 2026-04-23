@@ -48,6 +48,56 @@ function getParaleloItems(accordion) {
 // ── Mapa de conflictos (puro, sin DOM) ───────────────────────
 
 /**
+ * Convierte una hora en formato HH:MM a minutos desde medianoche.
+ * @param {string} hhmm - Hora en formato HH:MM
+ * @returns {number}
+ */
+function timeToMin(hhmm) {
+  var parts = hhmm.split(':').map(Number);
+  return parts[0] * 60 + parts[1];
+}
+
+/**
+ * Verifica si el paralelo (materia, pId) tiene conflictos de examen
+ * con los paralelos ya seleccionados.
+ * @param {string} materia
+ * @param {string} pId
+ * @returns {boolean}
+ */
+function hasExamConflict(materia, pId) {
+  var data = PlannerState.data;
+  var mat = data[materia];
+  if (!mat || !mat.paralelos || !mat.paralelos[pId]) return false;
+  var candidateExams = mat.paralelos[pId].examenes || {};
+  
+  var selectedExams = [];
+  Object.keys(PlannerState.selected).forEach(function(sm) {
+    var spId = PlannerState.selected[sm];
+    if (sm === materia && spId === pId) return;
+    var sp = data[sm] && data[sm].paralelos[spId];
+    if (sp && sp.examenes) {
+      Object.keys(sp.examenes).forEach(function(ek) {
+        selectedExams.push(sp.examenes[ek]);
+      });
+    }
+  });
+  
+  return Object.keys(candidateExams).some(function(ck) {
+    var cex = candidateExams[ck];
+    if (!cex || !cex.fecha) return false;
+    return selectedExams.some(function(sex) {
+      if (!sex || !sex.fecha) return false;
+      if (cex.fecha !== sex.fecha) return false;
+      var cStart = timeToMin(cex.inicio);
+      var cEnd = timeToMin(cex.fin);
+      var sStart = timeToMin(sex.inicio);
+      var sEnd = timeToMin(sex.fin);
+      return cStart < sEnd && cEnd > sStart;
+    });
+  });
+}
+
+/**
  * Construye un mapa { "materia|paralelo": boolean } indicando si
  * cada paralelo no seleccionado conflictúa con la selección actual.
  */
@@ -74,6 +124,9 @@ function plannerBuildCMap() {
           conflict = true;
         }
       });
+      if (!conflict) {
+        conflict = hasExamConflict(m, p);
+      }
       cmap[m + '|' + p] = conflict;
     });
   });
@@ -101,10 +154,32 @@ function getConflictingMaterialsForParallel(materia, pId) {
     if (!selPId) return;
     var selData = data[sm];
     if (!selData || !selData.paralelos || !selData.paralelos[selPId]) return;
+    
+    // Conflicto de horarios de clase
     var selSlots = pbParseH(selData.paralelos[selPId].horarios);
     if (pbOverlaps(slots, selSlots)) {
       conflicting.push(sm);
+      return; // ya está en conflicto, no hace falta ver exámenes
     }
+    
+    // Conflicto de exámenes
+    var candidateExams = mat.paralelos[pId].examenes || {};
+    var selectedExams = selData.paralelos[selPId].examenes || {};
+    var conflictExam = Object.keys(candidateExams).some(function(ck) {
+      var cex = candidateExams[ck];
+      if (!cex || !cex.fecha) return false;
+      return Object.keys(selectedExams).some(function(sk) {
+        var sex = selectedExams[sk];
+        if (!sex || !sex.fecha) return false;
+        if (cex.fecha !== sex.fecha) return false;
+        var cStart = timeToMin(cex.inicio);
+        var cEnd = timeToMin(cex.fin);
+        var sStart = timeToMin(sex.inicio);
+        var sEnd = timeToMin(sex.fin);
+        return cStart < sEnd && cEnd > sStart;
+      });
+    });
+    if (conflictExam) conflicting.push(sm);
   });
 
   return conflicting;
@@ -167,32 +242,75 @@ function plannerClearBlocks() {
   document.querySelectorAll('.ev-block').forEach(function(b) { b.remove(); });
 }
 
-/** Dibuja en la grilla los paralelos actualmente seleccionados. */
+/** Dibuja en la grilla los paralelos seleccionados según el modo actual. */
 function plannerDrawBlocks() {
   plannerClearBlocks();
+  if (PlannerState.viewMode === 'examenes') {
+    plannerDrawExamBlocks();
+  } else {
+    // Código original de dibujar clases
+    pbMatKeys(PlannerState.data).forEach(function(m) {
+      var pId = PlannerState.selected[m];
+      if (!pId) return;
+      var pd = PlannerState.data[m].paralelos[pId];
+      if (!pd) return;
+      var c = PB_PALETTE[PlannerState.colorMap[m] !== undefined ? PlannerState.colorMap[m] : 0];
+
+      pbParseH(pd.horarios).forEach(function(sl) {
+        var col = document.getElementById('dc-' + sl.di);
+        if (!col) return;
+        var blk = document.createElement('div');
+        blk.className  = 'ev-block';
+        blk.style.cssText =
+          'top:'    + (sl.s * PB_MIN_PX) + 'px;' +
+          'height:' + Math.max((sl.e - sl.s) * PB_MIN_PX, 20) + 'px;' +
+          'background:' + c.bg + ';' +
+          'color:'      + c.fg + ';' +
+          'border:1px solid ' + c.ac + '33;' +
+          'border-left:3px solid ' + c.ac + ';';
+        blk.innerHTML  = '<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' + m + '</div><div style="opacity:.55;font-size:8.5px">P' + pId + '</div>';
+        blk.title      = m + ' · Par. ' + pId + '\n' + sl.raw;
+        col.appendChild(blk);
+      });
+    });
+  }
+}
+
+/** Dibuja en la grilla los exámenes parciales de los paralelos seleccionados. */
+function plannerDrawExamBlocks() {
   pbMatKeys(PlannerState.data).forEach(function(m) {
     var pId = PlannerState.selected[m];
     if (!pId) return;
     var pd = PlannerState.data[m].paralelos[pId];
     if (!pd) return;
-    var c = PB_PALETTE[PlannerState.colorMap[m] !== undefined ? PlannerState.colorMap[m] : 0];
+    var exam = pd.examenes && pd.examenes.parcial;
+    if (!exam || !exam.fecha || !exam.inicio || !exam.fin) return;
 
-    pbParseH(pd.horarios).forEach(function(sl) {
-      var col = document.getElementById('dc-' + sl.di);
-      if (!col) return;
-      var blk = document.createElement('div');
-      blk.className  = 'ev-block';
-      blk.style.cssText =
-        'top:'    + (sl.s * PB_MIN_PX) + 'px;' +
-        'height:' + Math.max((sl.e - sl.s) * PB_MIN_PX, 20) + 'px;' +
-        'background:' + c.bg + ';' +
-        'color:'      + c.fg + ';' +
-        'border:1px solid ' + c.ac + '33;' +
-        'border-left:3px solid ' + c.ac + ';';
-      blk.innerHTML  = '<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' + m + '</div><div style="opacity:.55;font-size:8.5px">P' + pId + '</div>';
-      blk.title      = m + ' · Par. ' + pId + '\n' + sl.raw;
-      col.appendChild(blk);
-    });
+    // Calcular día de la semana (0 = Lunes … 4 = Viernes)
+    var fecha = new Date(exam.fecha + 'T00:00:00');
+    var jsDay = fecha.getDay(); // 0 = Domingo
+    var di = (jsDay + 6) % 7;   // Ajuste para que 0 = Lunes
+    if (di > 4) return;         // Solo mostramos exámenes entre lunes y viernes
+
+    var c = PB_PALETTE[PlannerState.colorMap[m] !== undefined ? PlannerState.colorMap[m] : 0];
+    var s = pbTimeToMin(exam.inicio);
+    var e = pbTimeToMin(exam.fin);
+
+    var col = document.getElementById('dc-' + di);
+    if (!col) return;
+
+    var blk = document.createElement('div');
+    blk.className = 'ev-block exam-block'; // clase extra para estilo opcional
+    blk.style.cssText =
+      'top:'    + (s * PB_MIN_PX) + 'px;' +
+      'height:' + Math.max((e - s) * PB_MIN_PX, 20) + 'px;' +
+      'background:' + c.bg + ';' +
+      'color:'      + c.fg + ';' +
+      'border:1px dashed ' + c.ac + '66;' +
+      'border-left:3px solid ' + c.ac + ';';
+    blk.innerHTML  = '<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' + m + ' (Examen)</div><div style="opacity:.55;font-size:8.5px">P' + pId + '</div>';
+    blk.title      = m + ' · Examen · Par. ' + pId + '\n' + exam.fecha + ' ' + exam.inicio + '-' + exam.fin;
+    col.appendChild(blk);
   });
 }
 
@@ -293,8 +411,13 @@ function plannerRenderLeft() {
 
       var cbCls = 'par-cb' + (isSel ? ' cb-on' : '');
 
-      var profMatch  = (pd.info || '').match(/Profesor:\s*(.+)/);
-      var prof       = profMatch ? profMatch[1].trim() : '';
+      var prof = (pd.profesor || '').trim();
+      if (!prof) {
+        // fallback por si viene de datos antiguos con info
+        var profMatch = (pd.info || '').match(/Profesor:\s*(.+)/);
+        prof = profMatch ? profMatch[1].trim() : '';
+      }
+      var ubic = pd.ubicacion || '';
       var slotsHtml  = (pd.horarios || []).map(function(h) {
         return '<span class="slot-pill">' + h + '</span>';
       }).join('');
@@ -307,6 +430,7 @@ function plannerRenderLeft() {
         '<div class="par-content">' +
           '<span class="par-badge" style="background:' + c.ac + '1a; color:' + c.fg + '; border:1px solid ' + c.ac + '40">Par. ' + pId + '</span>' +
           (prof ? '<div class="par-prof">' + prof + '</div>' : '') +
+          (ubic ? '<div class="par-ubic">📍 ' + ubic + '</div>' : '') +
           '<div class="par-slots">' + (slotsHtml || '<span class="slot-pill">Sin horario</span>') + '</div>' +
         '</div>' +
         (hasConflict ? '<span class="sym conflict-icon">warning</span>' : '');

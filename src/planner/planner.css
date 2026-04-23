@@ -19,6 +19,10 @@
 .icon-btn:hover { background: rgba(158,202,255,0.08); color: var(--text-main); }
 .icon-btn .sym { color: inherit; }
 
+.exam-block {
+  border-style: dashed !important;
+}
+
 .empty-state {
   display: flex;
   flex-direction: column;
@@ -287,4 +291,24 @@
 .ics-input[type="date"]::-webkit-calendar-picker-indicator {
   filter: invert(1);
   cursor: pointer;
+}
+
+.par-ubic {
+  font-size: 10px;
+  color: var(--text-sub);
+  margin-bottom: 4px;
+}
+.par-exams {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.exam-pill {
+  font-size: 9px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--outline-variant);
+  border-radius: 100px;
+  padding: 2px 8px;
+  color: var(--text-sub);
 }

@@ -11,6 +11,7 @@
   // ── Inicialización ──────────────────────────────────────────
 
   function init() {
+    PlannerState.viewMode = 'clases';
     pbLoadData(function(data) {
       PlannerState.data = data;
       plannerBuildGrid();
@@ -130,6 +131,91 @@
 
   // Mostrar / Ocultar calendario
   document.getElementById('btn-toggle-calendar').onclick = plannerToggleCalendar;
+
+  // ── Captura de imagen del horario ─────────────────────────────
+
+  function _captureScheduleImage() {
+    var rightPanel   = document.querySelector('.right-panel');
+    var gridScroll   = document.querySelector('.grid-scroll');
+    var scheduleGrid = document.getElementById('schedule-grid');
+
+    // No hacer nada si el calendario está oculto
+    if (!rightPanel || !gridScroll || !scheduleGrid) return;
+    if (rightPanel.style.display === 'none') {
+      _plannerWarnBadge('El calendario está oculto');
+      return;
+    }
+
+    // Guardar estilos originales
+    var origRightWidth     = rightPanel.style.width;
+    var origRightHeight    = rightPanel.style.height;
+    var origRightFlex      = rightPanel.style.flex;
+    var origOverflow       = gridScroll.style.overflow;
+    var origMaxHeight      = gridScroll.style.maxHeight;
+    var origHeight         = gridScroll.style.height;
+    var origGridHeight     = scheduleGrid.style.height;
+
+    // Forzar dimensiones fijas para que se muestre todo el contenido
+    rightPanel.style.width      = '1200px';
+    rightPanel.style.height     = 'auto';
+    rightPanel.style.flex       = 'none';
+    gridScroll.style.overflow   = 'visible';
+    gridScroll.style.maxHeight  = 'none';
+    gridScroll.style.height     = 'auto';
+    scheduleGrid.style.height   = PB_GRID_PX + 'px';
+
+    // Pequeño retraso para que el navegador reaccione al cambio de layout
+    setTimeout(function() {
+      // Capturar el panel derecho completo
+      htmlToImage.toPng(rightPanel, {
+        width: 1200,
+        height: rightPanel.scrollHeight,
+        pixelRatio: 2,
+        backgroundColor: getComputedStyle(document.body).getPropertyValue('--bg').trim() || '#121212'
+      }).then(function (dataUrl) {
+        // Descargar imagen
+        var a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = 'horario_espol_' + new Date().toISOString().slice(0, 10) + '.png';
+        a.click();
+
+        // Restaurar estilos originales
+        restoreStyles();
+      }).catch(function (error) {
+        console.error('Error al capturar la imagen:', error);
+        restoreStyles();
+      });
+    }, 100);
+
+    function restoreStyles() {
+      rightPanel.style.width      = origRightWidth;
+      rightPanel.style.height     = origRightHeight;
+      rightPanel.style.flex       = origRightFlex;
+      gridScroll.style.overflow   = origOverflow;
+      gridScroll.style.maxHeight  = origMaxHeight;
+      gridScroll.style.height     = origHeight;
+      scheduleGrid.style.height   = origGridHeight;
+    }
+  }
+
+  document.getElementById('btn-capture-image').onclick = _captureScheduleImage;
+
+  // ── Alternar vista Clases / Exámenes ─────────────────────────
+
+  document.getElementById('btn-toggle-exams').onclick = function() {
+    PlannerState.viewMode = (PlannerState.viewMode === 'clases') ? 'examenes' : 'clases';
+    var btn = document.getElementById('btn-toggle-exams');
+    if (btn) {
+      if (PlannerState.viewMode === 'examenes') {
+        btn.querySelector('.sym').textContent = 'calendar_month';
+        btn.title = 'Ver horario de clases';
+      } else {
+        btn.querySelector('.sym').textContent = 'edit_calendar';
+        btn.title = 'Ver exámenes';
+      }
+    }
+    plannerRefresh();
+  };
 
   // ── Arranque ─────────────────────────────────────────────────
   init();

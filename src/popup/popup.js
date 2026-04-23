@@ -13,14 +13,11 @@
   document.getElementById('btn-planner').onclick = function () {
     var plannerUrl = chrome.runtime.getURL('planner/planner.html');
 
-    // Buscar si ya existe una tab con la URL del Planner
     chrome.tabs.query({ url: plannerUrl }, function (tabs) {
       if (tabs && tabs.length > 0) {
-        // Ya existe: enfocar su ventana y activar su tab
         chrome.windows.update(tabs[0].windowId, { focused: true });
         chrome.tabs.update(tabs[0].id, { active: true });
       } else {
-        // No existe: crear ventana nueva
         chrome.windows.create({
           url: plannerUrl,
           type: 'popup',
@@ -45,19 +42,40 @@
   // ── Importar archivo .poli ────────────────────────────────────
 
   /**
-   * Parsea el contenido de texto de un archivo .poli y devuelve
-   * el objeto de datos compatible con el esquema de polibaldeo_data.
-   *
-   * Formato:
-   *   MATERIA_NAME|creditos
-   *   paraleloId | horario1; horario2 | <campo_extra> | info
-   *   <línea vacía>
-   *   MATERIA_NAME_2|creditos
-   *   ...
+   * Parsea el contenido del archivo .poli.
+   * Primero intenta como JSON (nuevo formato). Si falla, usa el
+   * formato de texto antiguo como fallback.
    */
   function parsePoli(text) {
-    if (text.charCodeAt(0) === 0xFEFF) { text = text.slice(1); } // quitar BOM
+    // Quitar BOM si existe
+    if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+    
+    // Intentar JSON
+    try {
+      var data = JSON.parse(text);
+      if (data && typeof data === 'object' && Array.isArray(data._order) && data._order.length > 0) {
+        // Asegurar estructura básica en cada materia
+        data._order.forEach(function(nombre) {
+          var mat = data[nombre];
+          if (mat && typeof mat === 'object') {
+            if (!mat.paralelos) mat.paralelos = {};
+            if (!mat._pOrder) mat._pOrder = [];
+            if (typeof mat.collapsed !== 'boolean') mat.collapsed = false;
+            // Asegurar que cada paralelo tenga la nueva propiedad examenes
+            Object.keys(mat.paralelos).forEach(function(pId) {
+              if (!mat.paralelos[pId].examenes) mat.paralelos[pId].examenes = {};
+            });
+          }
+        });
+        return data;
+      }
+    } catch(e) { /* no es JSON, probar formato antiguo */ }
 
+    // Fallback: formato de texto antiguo
+    return parseOldPoliFormat(text);
+  }
+
+  function parseOldPoliFormat(text) {
     var data = { _order: [] };
     var blocks = text.trim().split(/\n[ \t]*\n/);
 
@@ -80,16 +98,28 @@
         if (parts.length < 2) continue;
 
         var pId = parts[0].trim();
-        // Los horarios vienen separados por "; "; eliminar segundos al importar
         var horarios = parts[1].trim().split('; ').filter(Boolean).map(function (h) {
           return h.replace(/(\d{2}:\d{2}):\d{2}/g, '$1');
         });
-        // parts[2] es campo auxiliar del exportador — ignorar
         var infoRaw = parts.length >= 4 ? parts.slice(3).join(' | ') : '';
         var info = infoRaw.replace(/\\n/g, '\n');
 
         if (!pId) continue;
-        mat.paralelos[pId] = { horarios: horarios, info: info };
+
+        // Extraer profesor y ubicación del campo info
+        var prof = '', ubic = '';
+        info.split('\n').forEach(function(l) {
+          var lt = l.trim();
+          if (/^Profesor:/i.test(lt)) prof = lt.replace(/^Profesor:/i, '').trim();
+          if (/^Ubicaci[oó]n:/i.test(lt)) ubic = lt.replace(/^Ubicaci[oó]n:/i, '').trim();
+        });
+
+        mat.paralelos[pId] = {
+          horarios: horarios,
+          profesor: prof || 'Sin profesor',
+          ubicacion: ubic || '',
+          examenes: {}
+        };
         mat._pOrder.push(pId);
       }
 
@@ -122,7 +152,7 @@
 
   document.getElementById('file-import').onchange = function (e) {
     var file = e.target.files && e.target.files[0];
-    e.target.value = ''; // reset para permitir reimportar el mismo archivo
+    e.target.value = '';
     if (!file) return;
 
     var reader = new FileReader();
@@ -167,7 +197,6 @@
   };
 
   // ── Escuchar cambios externos en storage ─────────────────────
-  // (ej: content.js añade un paralelo mientras el popup está abierto)
 
   chrome.storage.onChanged.addListener(function (changes, area) {
     if (area === 'local' && changes[PB_STORAGE_KEY] && !PopupState.isInternalChange) {

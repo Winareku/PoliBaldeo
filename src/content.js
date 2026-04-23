@@ -1,6 +1,17 @@
 (function () {
   "use strict";
 
+  function parseExamInfo(text) {
+    if (!text) return null;
+    var match = text.match(/(\d{2})\/(\d{2})\/(\d{4})\s*-\s*(\d{2}:\d{2})\s*a\s*(\d{2}:\d{2})/);
+    if (!match) return null;
+    return {
+      fecha: match[3] + '-' + match[2] + '-' + match[1],
+      inicio: match[4],
+      fin: match[5]
+    };
+  }
+
   function extractData() {
     const materia = document.querySelector("#ctl00_contenido_LabelNombreMateria")?.textContent.trim();
     const teorico = document.querySelector("#ctl00_contenido_LabelParalelo")?.textContent.trim();
@@ -9,9 +20,8 @@
 
     const hasPracticos = document.querySelectorAll('a.mostrar').length > 0;
     let idCombinado = teorico;
-    
-    // 1. Obtener Profesor Principal
-    let prof = document.querySelector("#ctl00_contenido_LabelProfesor")?.textContent.trim() || "";
+
+    let profesorPrincipal = document.querySelector("#ctl00_contenido_LabelProfesor")?.textContent.trim() || "";
     let ubicacion = "";
     let practicoContainer = null;
 
@@ -28,57 +38,62 @@
 
     const horarios = [];
 
-    // 2. Extraer horarios y ubicación del Teórico
+    // Teórico
     const rowsTeorico = document.querySelectorAll("#ctl00_contenido_TableHorarios tbody tr");
     rowsTeorico.forEach(row => {
       const cols = row.querySelectorAll("td");
       if (cols.length >= 3) {
         horarios.push(`${cols[0].textContent.trim()} ${cols[1].textContent.trim()}-${cols[2].textContent.trim()}`);
-        
-        // La columna 3 es Aula, la 4 es el Bloque/Campus
         if (!ubicacion && cols.length >= 5) {
-            ubicacion = `${cols[3].textContent.trim()} ${cols[4].textContent.trim()}`.trim();
+          ubicacion = `${cols[3].textContent.trim()} ${cols[4].textContent.trim()}`.trim();
         }
       }
     });
 
-    // 3. Extraer horarios, profesor y ubicación del Práctico
+    // Práctico
     if (practicoContainer) {
-      // Buscar si el práctico tiene un profesor distinto (extraerlo sin la palabra "Profesor:")
       const profCell = Array.from(practicoContainer.querySelectorAll("td")).find(td => td.textContent.includes("Profesor:"));
       if (profCell) {
-          let profPrac = profCell.textContent.replace("Profesor:", "").replace(/\u00a0/g, " ").trim();
-          if (profPrac && profPrac !== prof) {
-              // Si es distinto, los unimos con un slash "/"
-              prof = prof ? `${prof} / ${profPrac}` : profPrac; 
-          }
+        let profPrac = profCell.textContent.replace("Profesor:", "").replace(/\u00a0/g, " ").trim();
+        if (profPrac && profPrac !== profesorPrincipal) {
+          profesorPrincipal = profesorPrincipal ? `${profesorPrincipal} / ${profPrac}` : profPrac;
+        }
       }
 
-      // Extraer horarios y ubicación del práctico
       practicoContainer.querySelectorAll("table.display tbody tr").forEach(row => {
         const cols = row.querySelectorAll("td");
         if (cols.length >= 3) {
           horarios.push(`${cols[0].textContent.trim()} ${cols[1].textContent.trim()}-${cols[2].textContent.trim()}`);
-          
           if (!ubicacion && cols.length >= 5) {
-              ubicacion = `${cols[3].textContent.trim()} ${cols[4].textContent.trim()}`.trim();
+            ubicacion = `${cols[3].textContent.trim()} ${cols[4].textContent.trim()}`.trim();
           }
         }
       });
     }
 
-    // 4. Construir infoExtra con formato estricto para el Modal de Edición
-    let infoExtra = `Profesor: ${prof || "No asignado"}`;
-    if (ubicacion) {
-        infoExtra += `\nUbicación: ${ubicacion}`;
-    }
+    // Exámenes
+    var examenes = {};
+    var parcialText = document.querySelector("#ctl00_contenido_LabelParcial")?.textContent.trim();
+    var finalText   = document.querySelector("#ctl00_contenido_LabelFinal")?.textContent.trim();
+    var mejoraText  = document.querySelector("#ctl00_contenido_LabelMejora")?.textContent.trim();
+
+    var parcialInfo = parseExamInfo(parcialText);
+    if (parcialInfo) examenes.parcial = parcialInfo;
+
+    var finalInfo = parseExamInfo(finalText);
+    if (finalInfo) examenes.final = finalInfo;
+
+    var mejoraInfo = parseExamInfo(mejoraText);
+    if (mejoraInfo) examenes.mejoramiento = mejoraInfo;
 
     return {
       materia,
       paraleloId: idCombinado,
       horarios,
-      info: infoExtra,
-      creditos: "0" // Los créditos se manejan luego en la UI
+      profesor: profesorPrincipal || "No asignado",
+      ubicacion: ubicacion,
+      creditos: "0",
+      examenes: examenes
     };
   }
 
@@ -98,7 +113,9 @@
 
       data[entry.materia].paralelos[entry.paraleloId] = {
         horarios: entry.horarios,
-        info: entry.info
+        profesor: entry.profesor,
+        ubicacion: entry.ubicacion,
+        examenes: entry.examenes || {}
       };
 
       if (!data[entry.materia]._pOrder.includes(entry.paraleloId)) {
@@ -120,7 +137,6 @@
     }
     toast.textContent = msg;
     toast.className = "show " + type;
-
     clearTimeout(window.pbToastTimer);
     window.pbToastTimer = setTimeout(() => toast.classList.remove("show"), 3000);
   }
@@ -144,5 +160,4 @@
 
   injectButton();
   new MutationObserver(injectButton).observe(document.body, { childList: true, subtree: true });
-
 })();

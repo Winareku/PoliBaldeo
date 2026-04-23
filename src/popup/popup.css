@@ -197,6 +197,22 @@
   color: var(--text-sub);
 }
 
+.examen-tags {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.examen-tag {
+  font-size: 9px;
+  background: #1a1a1a;
+  border: 1px solid var(--outline-variant);
+  padding: 2px 8px;
+  border-radius: 100px;
+  color: var(--text-sub);
+}
+
 .drag-handle {
   display: flex;
   align-items: center;
@@ -496,3 +512,29 @@
   flex-shrink: 0;
 }
 .pb-h-del:hover { background: rgba(255,180,171,0.12); }
+
+.examen-tags {
+  margin-top: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.examen-tag {
+  font-size: 9px;
+  background: #1a1a1a;
+  border: 1px solid var(--outline-variant);
+  padding: 2px 8px;
+  border-radius: 100px;
+  color: var(--text-sub);
+}
+
+.ubicacion-pill {
+  display: inline-block;
+  font-size: 9px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--outline-variant);
+  border-radius: 100px;
+  padding: 2px 8px;
+  color: var(--text-sub);
+  margin-top: 4px;
+}

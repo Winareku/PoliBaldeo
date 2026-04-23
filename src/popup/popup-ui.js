@@ -343,8 +343,23 @@ function popupOpenEditModal(materia, pId, isNew) {
                PopupState.currentData[materia].paralelos[pId]) || {};
   }
 
-  var parsed = pbParseInfo(parData.info || '');
   var parNum = isNew ? _pbNextParId(materia) : (pId || '');
+
+  // Obtener profesor y ubicación (separados o del campo info antiguo)
+  var prof = parData.profesor || '';
+  var ubic = parData.ubicacion || '';
+  if (!prof && !ubic) {
+    // Fallback: parsear del info antiguo si es necesario
+    var parsed = pbParseInfo(parData.info || '');
+    prof = parsed.prof;
+    ubic = parsed.ubic;
+  }
+
+  // Obtener exámenes existentes
+  var examData = parData.examenes || {};
+  var parcial = examData.parcial || { fecha: '', inicio: '', fin: '' };
+  var final   = examData.final   || { fecha: '', inicio: '', fin: '' };
+  var mejora  = examData.mejoramiento || { fecha: '', inicio: '', fin: '' };
 
   var horariosRows = '';
   (parData.horarios || []).forEach(function(h) {
@@ -369,19 +384,15 @@ function popupOpenEditModal(materia, pId, isNew) {
   var bodyHTML = `
     <div class="pb-field-row">
       <span class="pb-field-label">Paralelo</span>
-      <div class="pb-par-stepper">
-        <button id="pb-par-minus" type="button">−</button>
-        <input id="pb-par-num" type="text" class="pb-par-num-input" value="${parNum}">
-        <button id="pb-par-plus" type="button">+</button>
-      </div>
+      <input id="pb-par-num" type="text" class="pb-text-input" value="${parNum}" style="max-width:70px;">
     </div>
     <div class="pb-field-row">
       <span class="pb-field-label">Profesor</span>
-      <input id="pb-prof-input" type="text" class="pb-text-input" placeholder="Nombre del profesor" value="${parsed.prof.replace(/"/g, '&quot;')}">
+      <input id="pb-prof-input" type="text" class="pb-text-input" placeholder="Nombre del profesor" value="${prof.replace(/"/g, '&quot;')}">
     </div>
     <div class="pb-field-row">
       <span class="pb-field-label">Ubicación</span>
-      <input id="pb-ubic-input" type="text" class="pb-text-input" placeholder="Aula o edificio" value="${parsed.ubic.replace(/"/g, '&quot;')}">
+      <input id="pb-ubic-input" type="text" class="pb-text-input" placeholder="Aula o edificio" value="${ubic.replace(/"/g, '&quot;')}">
     </div>
     <div class="pb-section-hdr">
       <span>Horarios</span>
@@ -390,6 +401,32 @@ function popupOpenEditModal(materia, pId, isNew) {
       </button>
     </div>
     <div id="pb-horarios-container">${horariosRows}</div>
+
+    <!-- Sección Exámenes -->
+    <div class="pb-section-hdr" style="margin-top:12px;">
+      <span>Exámenes</span>
+    </div>
+    <div class="pb-field-row">
+      <span class="pb-field-label">1</span>
+      <input type="date" class="pb-text-input exam-fecha" id="exam-parcial-fecha" value="${parcial.fecha}" style="max-width:130px;">
+      <input type="text" class="pb-time-input exam-hora" id="exam-parcial-inicio" placeholder="HH:MM" maxlength="5" value="${parcial.inicio}" style="max-width:100px;">
+      <span class="pb-h-sep">–</span>
+      <input type="text" class="pb-time-input exam-hora" id="exam-parcial-fin" placeholder="HH:MM" maxlength="5" value="${parcial.fin}" style="max-width:100px;">
+    </div>
+    <div class="pb-field-row">
+      <span class="pb-field-label">2</span>
+      <input type="date" class="pb-text-input exam-fecha" id="exam-final-fecha" value="${final.fecha}" style="max-width:130px;">
+      <input type="text" class="pb-time-input exam-hora" id="exam-final-inicio" placeholder="HH:MM" maxlength="5" value="${final.inicio}" style="max-width:100px;">
+      <span class="pb-h-sep">–</span>
+      <input type="text" class="pb-time-input exam-hora" id="exam-final-fin" placeholder="HH:MM" maxlength="5" value="${final.fin}" style="max-width:100px;">
+    </div>
+    <div class="pb-field-row">
+      <span class="pb-field-label">3</span>
+      <input type="date" class="pb-text-input exam-fecha" id="exam-mejora-fecha" value="${mejora.fecha}" style="max-width:130px;">
+      <input type="text" class="pb-time-input exam-hora" id="exam-mejora-inicio" placeholder="HH:MM" maxlength="5" value="${mejora.inicio}" style="max-width:100px;">
+      <span class="pb-h-sep">–</span>
+      <input type="text" class="pb-time-input exam-hora" id="exam-mejora-fin" placeholder="HH:MM" maxlength="5" value="${mejora.fin}" style="max-width:100px;">
+    </div>
   `;
 
   var modal = PBModal.create({
@@ -403,19 +440,20 @@ function popupOpenEditModal(materia, pId, isNew) {
 
   modal.open();
 
+  // Ajustar tamaño del modal
+  var modalCard = modal.root.querySelector('.modal-card');
+  if (modalCard) {
+    modalCard.style.maxWidth = '540px';
+  }
+  var modalBody = modal.root.querySelector('.modal-body');
+  if (modalBody) {
+    modalBody.style.maxHeight = '520px';
+  }
+
   var parInput = modal.getElement('#pb-par-num');
   var profInput = modal.getElement('#pb-prof-input');
   var ubicInput = modal.getElement('#pb-ubic-input');
   var container = modal.getElement('#pb-horarios-container');
-
-  modal.getElement('#pb-par-minus').onclick = function() {
-    var v = parseInt(parInput.value, 10);
-    if (!isNaN(v) && v > 1) parInput.value = String(v - 1);
-  };
-  modal.getElement('#pb-par-plus').onclick = function() {
-    var v = parseInt(parInput.value, 10);
-    parInput.value = isNaN(v) ? '1' : String(v + 1);
-  };
 
   modal.getElement('#pb-add-horario').onclick = function() {
     var row = document.createElement('div');
@@ -490,7 +528,30 @@ function popupOpenEditModal(materia, pId, isNew) {
       horarios.push(day + ' ' + start + '-' + end);
     }
 
-    var parDataNew = { horarios: horarios, info: pbBuildInfo(prof, ubic) };
+    // Leer exámenes
+    var examenesNuevos = {};
+    function readExam(prefix) {
+      var fecha = modal.getElement('#exam-' + prefix + '-fecha')?.value || '';
+      var inicio = modal.getElement('#exam-' + prefix + '-inicio')?.value || '';
+      var fin = modal.getElement('#exam-' + prefix + '-fin')?.value || '';
+      if (fecha && inicio && fin) {
+        return { fecha: fecha, inicio: inicio, fin: fin };
+      }
+      return null;
+    }
+    var p = readExam('parcial');
+    if (p) examenesNuevos.parcial = p;
+    var f = readExam('final');
+    if (f) examenesNuevos.final = f;
+    var m = readExam('mejora');
+    if (m) examenesNuevos.mejoramiento = m;
+
+    var parDataNew = {
+      horarios: horarios,
+      profesor: prof,
+      ubicacion: ubic,
+      examenes: examenesNuevos
+    };
     var mat = PopupState.currentData[materia];
     if (!mat.paralelos) mat.paralelos = {};
     if (!mat._pOrder)   mat._pOrder   = [];
@@ -636,10 +697,15 @@ function popupBuildParaleloItem(nombreMateria, nParalelo, data, parentList) {
   item.className = 'paralelo-item';
   item.dataset.paralelo = nParalelo;
 
-  var profLine = (data.info || '').split('\n').find(function(l) {
-    return l.includes('Profesor:');
-  }) || '';
-  var prof = profLine.replace('Profesor:', '').trim() || 'Sin profesor';
+  // Obtener profesor (desde campo separado o del info antiguo)
+  var prof = data.profesor || '';
+  if (!prof) {
+    var profLine = (data.info || '').split('\n').find(function(l) {
+      return l.includes('Profesor:');
+    }) || '';
+    prof = profLine.replace('Profesor:', '').trim() || 'Sin profesor';
+  }
+  if (!prof) prof = 'Sin profesor';
 
   var paraleloTop = document.createElement('div');
   paraleloTop.className = 'paralelo-top';
@@ -690,7 +756,18 @@ function popupBuildParaleloItem(nombreMateria, nParalelo, data, parentList) {
     horarioTags.appendChild(tag);
   });
 
-  item.append(paraleloTop, horarioTags);
+  // Ubicación como píldora sin emoji
+  if (data.ubicacion) {
+    var ubicPill = document.createElement('span');
+    ubicPill.className = 'ubicacion-pill';
+    ubicPill.textContent = data.ubicacion;
+    item.appendChild(ubicPill);
+  }
+
+  item.appendChild(paraleloTop);
+  item.appendChild(horarioTags);
+
+  // Los exámenes NO se muestran en la vista colapsable
 
   pbInitDragHandle(item.querySelector('.drag-handle'), item, parentList, popupSaveVisualState);
 
