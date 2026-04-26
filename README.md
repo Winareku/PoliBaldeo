@@ -8,9 +8,11 @@
 
 ## 🚀 Características Principales
 
-  - **Captura Inteligente**: Inyecta un botón "Añadir" directamente en el detalle de las materias del portal académico para extraer datos de horarios, exámenes (parcial, final y mejoramiento), profesor y ubicación automáticamente.
+  - **Captura Inteligente**: Inyecta un botón "Añadir" y un navegador de paralelos directamente en el portal académico. Extrae horarios, profesor, ubicación y exámenes (parcial, final y mejoramiento) con un solo clic.
+  - **Navegador de paralelos**: Menú de navegación entre paralelos de una misma materia estilo Material 3, ubicado debajo del título de la página.
   - **Planificador Visual (Planner)**: Interfaz dedicada con una rejilla semanal para visualizar la carga académica. Incluye una vista alternativa para mostrar únicamente los exámenes parciales.
   - **Detección de Conflictos**: Sistema automático que identifica y resalta cruces de horarios entre paralelos seleccionados, incluyendo conflictos entre exámenes. Muestra las materias conflictivas al pasar el ratón sobre el icono de advertencia.
+  - **Auto‑selección inteligente**: Botón "dado" que busca automáticamente una combinación de paralelos sin conflictos mediante backtracking aleatorio.
   - **Zero-Backend**: Los datos se gestionan localmente en el navegador mediante `chrome.storage.local`, garantizando privacidad y rapidez.
   - **Exportación Versátil**:
       - Genera archivos `.poli` en formato JSON para respaldo y transferencia.
@@ -40,24 +42,39 @@ La extensión utiliza una arquitectura modular de scripts compartidos (Vanilla J
 ### Estructura de Archivos:
 
   - `shared/`: Lógica persistente y utilitarios puros (almacenamiento, exportadores, constantes).
-    - `styles/`: Hojas de estilo modulares (variables, base, botones, modal).
+    - `styles/`: Hojas de estilo modulares (variables, base, botones, modal, componentes compartidos).
     - `components/`: Componentes UI reutilizables (modal dinámico).
     - `libs/`: Librerías de terceros (html-to-image para captura de imagen).
-  - `content/`: Script inyectado en el portal académico para el raspado de datos (Scraping).
-  - `planner/`: Interfaz y lógica del orquestador de horarios (HTML, CSS, JS).
-  - `popup/`: Menú rápido de la extensión para acceso directo al Planner y gestión de datos (HTML, CSS, JS).
+  - `content/`: Scripts inyectados en el portal académico para scraping y navegación de paralelos.
+  - `planner/`: Interfaz y lógica del planificador de horarios, dividida en módulos (conflictos, grilla, UI y orquestador).
+  - `popup/`: Menú rápido de la extensión, con módulos separados para estado, toasts, modales, tarjetas, drag & drop y orquestador.
 
 ### Orden de Carga Crítico:
 
 Para garantizar la disponibilidad de variables globales, los scripts siguen este orden estricto:
 
-1.  `utils.js` (Constantes)
-2.  `storage.js` (Capa de persistencia)
-3.  `exporter.js` / `ics-exporter.js` (Lógica de archivos)
-4.  `modal.js` (Componente de modales)
-5.  `html-to-image.min.js` (Captura de imagen, solo en planner)
-6.  `*-ui.js` (Renderizado de interfaz)
-7.  `*.js` (Orquestador y listeners)
+**Popup:**
+1. `utils.js` (Constantes)
+2. `storage.js` (Capa de persistencia)
+3. `exporter.js` (Lógica de archivos)
+4. `modal.js` (Componente de modales)
+5. `popup-state.js` (Estado global)
+6. `popup-toasts.js` (Sistema de notificaciones)
+7. `popup-modals.js` (Diálogos modales)
+8. `popup-cards.js` (Renderizado de tarjetas)
+9. `popup-drag.js` (Drag & drop)
+10. `popup.js` (Orquestador y listeners)
+
+**Planner:**
+1. `utils.js` (Constantes)
+2. `storage.js` (Capa de persistencia)
+3. `ics-exporter.js` (Lógica de archivos)
+4. `modal.js` (Componente de modales)
+5. `html-to-image.min.js` (Captura de imagen)
+6. `planner-conflicts.js` (Lógica de conflictos)
+7. `planner-grid.js` (Renderizado de grilla)
+8. `planner-ui.js` (Estado y panel izquierdo)
+9. `planner.js` (Orquestador y listeners)
 
 ## 🤝 Contribuciones
 

@@ -229,15 +229,14 @@
   background: transparent; 
 }
 
-/* Mantener el fondo correcto si pasas el mouse por encima de uno que ya está seleccionado */
 .par-item.par-sel:hover {
   background: color-mix(in srgb, var(--mat-ac, var(--primary)) 12%, transparent);
 }
 
 .day-hdr {
   display: flex;
-  align-items: center;   /* Centrado vertical */
-  justify-content: center; /* Centrado horizontal */
+  align-items: center;
+  justify-content: center;
   text-align: center;
   font-weight: 600;
   font-size: 13px;
@@ -253,62 +252,8 @@
   cursor: pointer;
 }
 
-/* Stepper tipo pastilla (idéntico al de popup) */
-.creditos-stepper {
-  display: flex;
-  align-items: center;
-  background: var(--surface-variant);
-  border-radius: 100px;
-  padding: 2px;
-}
-.creditos-stepper button {
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: 100px;
-  background: transparent;
-  color: var(--text-main);
-  font-size: 17px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-.creditos-stepper button:hover {
-  background: rgba(255, 255, 255, 0.08);
-}
-.creditos-value {
-  min-width: 26px;
-  text-align: center;
-  font-weight: 700;
-  font-size: 13px;
-}
-
-/* Icono blanco para el input date */
-.ics-input[type="date"] {
-  color-scheme: dark;
-}
-.ics-input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(1);
-  cursor: pointer;
-}
-
 .par-ubic {
   font-size: 10px;
   color: var(--text-sub);
   margin-bottom: 4px;
-}
-.par-exams {
-  margin-top: 4px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 3px;
-}
-.exam-pill {
-  font-size: 9px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid var(--outline-variant);
-  border-radius: 100px;
-  padding: 2px 8px;
-  color: var(--text-sub);
 }

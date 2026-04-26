@@ -1,8 +1,11 @@
 /* ============================================================
    Polibaldeo – planner.js  (Orquestador)
    Responsabilidad única: inicializar, cargar datos y enlazar
-   listeners de botones. Toda la lógica de render vive en
-   planner-ui.js; la lógica pura en shared/.
+   listeners de botones.
+   
+   Depende de: planner-ui.js, planner-grid.js, planner-conflicts.js
+   Requiere (cargados antes): utils.js, storage.js, ics-exporter.js,
+                              components/modal.js, libs/html-to-image.min.js
    ============================================================ */
 
 (function() {

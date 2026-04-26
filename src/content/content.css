@@ -1,10 +1,3 @@
-/* Polibaldeo - Estilos para el botón y el navegador de paralelos */
-#polibaldeo-btn-wrap {
-  display: inline-flex;
-  align-items: center;
-  margin-left: 10px;
-}
-
 #polibaldeo-add-btn {
   background: #1e1e1e;
   border: 1px solid #3a3b47;

@@ -1,8 +1,15 @@
 /* ============================================================
    Polibaldeo – popup.js  (Orquestador)
    Responsabilidad única: inicializar, cargar datos y enlazar
-   listeners de botones. Toda la lógica de render vive en
-   popup-ui.js; la lógica pura en shared/.
+   listeners de botones.
+   
+   Depende de:
+   - popup-state.js (gestión de estado global)
+   - popup-toasts.js (notificaciones tipo toast)
+   - popup-modals.js (diálogos modales)
+   - popup-cards.js (renderizado de UI)
+   - popup-drag.js (drag & drop)
+   - shared/utils.js, storage.js, exporter.js, modal.js
    ============================================================ */
 
 (function () {

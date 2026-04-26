@@ -32,8 +32,11 @@ polibaldeo/
 ├── src/                        # ── Código Fuente ──
     ├── manifest.json           # Manifiesto de la extensión (MV3)
     ├── background.js           # Service Worker: Inicializa el Side Panel
-    ├── content.js              # Script de contenido: Scraper de DOM e inyector
-    ├── content.css             # Estilos para el botón inyectado y notificaciones
+    │
+    ├── content/                # ── Script de contenido ──
+    │   ├── content-scraper.js  # Lógica de extracción de datos
+    │   ├── content-navigator.js# Navegador de paralelos y botón de captura
+    │   └── content.css         # Estilos para el botón y navegador de paralelos
     │
     ├── icons/                  # Iconos de la extensión
     │
@@ -53,21 +56,28 @@ polibaldeo/
     │       ├── variables.css   # Variables globales de color y tipografía
     │       ├── base.css        # Reset y estilos base
     │       ├── buttons.css     # Componentes de botones reutilizables
-    │       └── modal.css       # Estilos para el modal genérico
+    │       ├── modal.css       # Estilos para el modal genérico
+    │       └── components.css  # Componentes visuales compartidos (stepper, píldoras, tags)
     │
     ├── popup/                  # ── UI del Side Panel ──
     │   ├── popup.html          # Estructura HTML y orden de carga de scripts
     │   ├── popup.css           # Componentes visuales del popup
     │   ├── popup-layout.css    # Estructura de grid y dimensiones
-    │   ├── popup-ui.js         # Renderizado de tarjetas de materias y paralelos
+    │   ├── popup-state.js      # Gestión del estado global (PopupState, EditModalState)
+    │   ├── popup-toasts.js     # Sistema de notificaciones tipo toast
+    │   ├── popup-modals.js     # Diálogos modales (edición de paralelos, materias)
+    │   ├── popup-cards.js      # Renderizado de tarjetas de materias y paralelos
+    │   ├── popup-drag.js       # Funcionalidad de drag & drop
     │   └── popup.js            # Orquestador: listeners de botones e importación
     │
     └── planner/                # ── Ventana del Planificador ──
         ├── planner.html        # Estructura HTML de la cuadrícula
         ├── planner.css         # Componentes visuales del planner
         ├── planner-layout.css  # Estructura de paneles y grid
-        ├── planner-ui.js       # Renderizado de cuadrícula, acordeones y conflictos
-        ├── planner.js          # Orquestador: lógica de selección, filtros y vista de exámenes
+        ├── planner-conflicts.js# Lógica de detección de conflictos (horarios y exámenes)
+        ├── planner-grid.js     # Renderizado de la grilla de horarios
+        ├── planner-ui.js       # Gestión de estado y panel izquierdo (acordeones)
+        ├── planner.js          # Orquestador: lógica de selección y botones
         └── test.js             # Validación de lógica de conflictos (off-browser)
 ```
 
@@ -78,8 +88,11 @@ polibaldeo/
 ### `src/background.js` — Service Worker
 Funciona en segundo plano. Su única responsabilidad actual es escuchar el evento `onClicked` de la acción de la extensión para ejecutar `chrome.sidePanel.open`, abriendo la interfaz en la barra lateral del navegador.
 
-### `src/content.js` — Captura de Datos
-Se inyecta en el portal académico. Su función `extractData()` identifica el nombre de la materia, el paralelo (teórico o combinado con práctico), los profesores, las ubicaciones (aulas/bloques) y **los exámenes** (parcial, final, mejoramiento). Utiliza un `MutationObserver` para asegurar que el botón de captura se mantenga visible ante cambios dinámicos en el DOM.
+### `src/content/content-scraper.js` — Captura de Datos
+Se inyecta en el portal académico. Contiene las funciones `parseExamInfo`, `_extractData`, `saveData`, `showToast` y `captureData`. Extrae horarios, profesor, ubicación y exámenes, y persiste los datos en `chrome.storage.local`.
+
+### `src/content/content-navigator.js` — Interfaz de Navegación
+Inyecta el botón "Añadir a Polibaldeo" y un navegador de paralelos estilo Material 3. Utiliza un `MutationObserver` para garantizar su persistencia ante cambios dinámicos del DOM.
 
 ### `src/shared/ics-exporter.js` — Exportación a Calendario
 Módulo encargado de transformar la selección del usuario en un archivo `.ics` compatible con Google Calendar u Outlook.
@@ -89,8 +102,38 @@ Módulo encargado de transformar la selección del usuario en un archivo `.ics` 
 ### `src/shared/components/modal.js` — Componente PBModal
 Proporciona una API simple para crear modales dinámicos (`PBModal.create({ title, body, footer })`). Retorna un objeto con métodos `open()`, `close()`, `destroy()` y `getElement(selector)`. Elimina la necesidad de overlays hardcodeados en los HTML, mejorando la mantenibilidad y reduciendo la duplicación de código.
 
-### `src/shared/libs/html-to-image.min.js` — Captura de imagen
-Librería de terceros (html-to-image) utilizada para exportar la vista del horario como imagen PNG. Se emplea únicamente en el planner.
+### `src/popup/popup-state.js` — Gestión de Estado
+Define las variables globales de estado del panel:
+- `PopupState`: Objeto con `currentData` (materias y paralelos) e `isInternalChange` (flag de sincronización).
+- `EditModalState`: Contexto para el modal de edición de paralelos.
+- `popupColorMap` y `popupColorCtr`: Mapeo de colores de la paleta para cada materia.
+- `popupSaveVisualState()`: Persiste el estado visual (orden, créditos, estado colapsado) en el almacenamiento.
+
+### `src/popup/popup-toasts.js` — Sistema de Notificaciones
+Implementa un sistema de toasts para notificaciones al usuario:
+- `popupSetStatus(msg, type)`: Muestra notificaciones simples (success, warning, info).
+- `pbShowUndoToast(msg, undoFn)`: Muestra notificaciones con acción de "Deshacer".
+- `_removeToastEntry()`: Gestiona la limpieza de toasts.
+
+### `src/popup/popup-modals.js` — Diálogos Modales
+Contiene todos los modales de la interfaz:
+- `pbConfirm(msg, onOk, onCancel)`: Modal genérico de confirmación.
+- `popupOpenEditModal(materia, pId, isNew)`: Modal para editar/crear paralelos (horarios, profesor, ubicación, exámenes).
+- `popupOpenMateriaModal()`: Modal para crear nuevas materias.
+- `popupStartNameEdit(nameEl, card)`: Edición inline del nombre de materia.
+- Helpers: `pbParseHorarioStr()`, `pbParseInfo()`, `pbBuildInfo()`, `_pbNextParId()`.
+
+### `src/popup/popup-cards.js` — Renderizado de UI
+Funciones de construcción y renderizado de elementos DOM:
+- `popupRender(data)`: Punto de entrada principal, renderiza la lista de materias.
+- `popupBuildMateriaCard(nombre, mat)`: Crea la tarjeta de una materia con controles.
+- `popupBuildParaleloItem(nombreMateria, nParalelo, data, parentList)`: Crea un item de paralelo.
+- `popupToggleCollapseAll()`: Alterna el estado colapsado de todas las materias.
+- `popupUpdateCounter()`: Actualiza el contador de materias en el header.
+
+### `src/popup/popup-drag.js` — Drag & Drop
+Implementa la funcionalidad de arrastrar y soltar:
+- `pbInitDragHandle(handleEl, itemEl, containerEl, onDrop)`: Inicializa drag & drop para reordenar elementos.
 
 ### `src/popup/popup.js` — Orquestador del Side Panel
 Gestiona las acciones principales del panel lateral:
@@ -98,16 +141,47 @@ Gestiona las acciones principales del panel lateral:
 - **Navegación:** Abre el planificador en una ventana popup optimizada (1000x700px).
 - **Sincronización:** Escucha cambios en `chrome.storage.local` para refrescar la lista de materias si se añaden nuevos datos desde una pestaña.
 
+### `src/planner/planner-conflicts.js` — Lógica de Conflictos
+Módulo que detecta conflictos de horarios y exámenes:
+- `timeToMin(hhmm)`: Convierte hora a minutos.
+- `hasExamConflict(materia, pId)`: Verifica si un paralelo tiene conflicto de examen.
+- `plannerBuildCMap()`: Construye mapa de conflictos para todos los paralelos no seleccionados.
+- `getConflictingMaterialsForParallel(materia, pId)`: Retorna lista de materias conflictivas.
+
+### `src/planner/planner-grid.js` — Renderizado de Grilla
+Funciones de construcción y renderizado de la grilla de horarios:
+- `plannerBuildGrid()`: Construye la estructura estática de columnas y líneas.
+- `plannerClearBlocks()`: Elimina todos los bloques de eventos.
+- `plannerDrawBlocks()`: Dibuja paralelos seleccionados en la grilla (clases o exámenes).
+- `plannerDrawExamBlocks()`: Dibuja específicamente los exámenes parciales.
+
+### `src/planner/planner-ui.js` — Gestión del Estado y Panel Izquierdo
+Gestión centralizada del estado y renderizado del panel izquierdo:
+- `PlannerState`: Objeto global con estado (datos, selecciones, colores, colapso).
+- `getAccordions()`, `getAccordionByMateria()`, `getParaleloItems()`: Utilidades DOM.
+- `plannerRenderLeft()`: Construye acordeones del panel izquierdo.
+- `updateLeftPanelState()`: Actualización incremental del estado visual.
+- `plannerUpdateFooter()`: Actualiza contador de créditos y badge de conflictos.
+- `plannerFullRefresh()`: Refresco completo (para cambios estructurales).
+- `plannerRefresh()`: Refresco inteligente (incremental o completo según sea necesario).
+- `plannerToggleCollapseAll()`: Toggle de colapso de todos los acordeones.
+- `plannerApplyCalendarVisibility()`, `plannerToggleCalendar()`: Control de visibilidad del calendario.
+- `plannerInitResizeObserver()`: Inicializa ResizeObserver para auto-ocultar al encoger.
+
 ### `src/planner/planner.js` — Orquestador del Planificador
-Además de la lógica de selección y filtros, ahora incorpora:
-- **Vista de exámenes:** Alterna entre la grilla de clases y una vista dedicada a los exámenes parciales (calculando el día de la semana a partir de la fecha).
-- **Exportación a imagen:** Utiliza `html-to-image` para capturar el panel del horario y descargarlo como PNG.
+Coordina la inicialización y gestiona las acciones principales:
+- **Inicialización:** Carga datos desde `chrome.storage` y construye la interfaz.
+- **Listeners:** Enlaza eventos de botones (deseleccionar, colapsar, toggle calendario, etc.).
+- **Sincronización:** Escucha cambios de almacenamiento para actualizar la vista.
+- **Modos:** Maneja vista de clases vs. vista de exámenes.
+- **Exportación:** Integración con `ics-exporter.js` y `html-to-image` para descargar datos.
 
 ### CSS Modular (`src/shared/styles/`)
 - **`variables.css`**: Centraliza los colores, bordes y tipografía usados en toda la extensión.
 - **`base.css`**: Aplica un reset consistente y estilos base para `html`, `body` y la clase `.sym`.
 - **`buttons.css`**: Define variantes de botones (`.btn`, `.btn-primary`, `.btn-surface`, etc.) reutilizables.
 - **`modal.css`**: Estilos genéricos para overlays y modales, compartidos por todos los diálogos de la extensión.
+- **`components.css`**: Componentes visuales compartidos (stepper de créditos, píldoras, tags de horarios y exámenes). Evita la duplicación entre popup y planner.
 
 ---
 
@@ -115,7 +189,7 @@ Además de la lógica de selección y filtros, ahora incorpora:
 
 El flujo de información en Polibaldeo sigue un modelo descentralizado basado en el almacenamiento local de Chrome:
 
-1.  **Captura:** Cuando el usuario interactúa con la página de ESPOL, `content.js` extrae la información (incluyendo exámenes) y la envía directamente a `chrome.storage.local`. No hay comunicación directa (mensajería) entre el script de contenido y la UI; el almacenamiento actúa como la "fuente de verdad".
+1.  **Captura:** Cuando el usuario interactúa con la página de ESPOL, `content-scraper.js` extrae la información (incluyendo exámenes) y la envía directamente a `chrome.storage.local`. No hay comunicación directa (mensajería) entre el script de contenido y la UI; el almacenamiento actúa como la "fuente de verdad".
 2.  **Notificación Reactiva:** El Side Panel (`popup.js`) y el Planificador (`planner.js`) mantienen listeners activos sobre el almacenamiento. En cuanto los datos cambian, estas interfaces activan sus funciones de renderizado para mostrar la nueva materia o paralelo sin necesidad de recargar.
 3.  **Gestión de Estado de UI:** Las preferencias visuales, como si una tarjeta de materia está colapsada o el número de créditos asignado manualmente, se guardan en el mismo objeto de datos para asegurar que la experiencia sea consistente entre el panel lateral y el planificador.
 4.  **Salida de Datos:** Para la exportación, los módulos `exporter.js` (JSON) e `ics-exporter.js` (iCalendar) toman el estado actual del almacenamiento y las selecciones activas en el planificador para generar archivos descargables de forma local mediante Blobs de JavaScript. Adicionalmente, el planner puede exportar la vista como imagen PNG.
@@ -131,19 +205,25 @@ Debido a que el proyecto no utiliza módulos de ES6, el orden de carga en `popup
 1.  `src/shared/utils.js`: Define constantes globales y funciones matemáticas.
 2.  `src/shared/storage.js`: Proporciona las funciones de lectura/escritura.
 3.  `src/shared/exporter.js`: Funciones de generación de archivos `.poli` (JSON).
-4.  `src/shared/components/modal.js`: Componente `PBModal` (requerido por `popup-ui.js`).
-5.  `src/popup/popup-ui.js`: Define el objeto de estado `PopupState` y las funciones de construcción de DOM.
-6.  `src/popup/popup.js`: Ejecuta la inicialización, enlaza eventos y carga los datos iniciales.
+4.  `src/shared/components/modal.js`: Componente `PBModal` (requerido por los modales).
+5.  `src/popup/popup-state.js`: Estado global y persistencia visual.
+6.  `src/popup/popup-toasts.js`: Sistema de notificaciones.
+7.  `src/popup/popup-modals.js`: Diálogos modales (requiere popup-state.js y popup-toasts.js).
+8.  `src/popup/popup-cards.js`: Renderizado de tarjetas (requiere popup-state.js, popup-toasts.js, popup-modals.js, popup-drag.js).
+9.  `src/popup/popup-drag.js`: Funcionalidad drag & drop.
+10. `src/popup/popup.js`: Orquestador (inicialización y listeners).
 
 ### Orden de carga en `planner.html`
 
 1.  `src/shared/utils.js`: Constantes y funciones puras.
 2.  `src/shared/storage.js`: Capa `chrome.storage`.
 3.  `src/shared/ics-exporter.js`: Generación de archivos `.ics`.
-4.  `src/shared/components/modal.js`: Componente `PBModal` (usado por `planner.js` para el modal ICS).
+4.  `src/shared/components/modal.js`: Componente `PBModal` (usado por `planner.js`).
 5.  `src/shared/libs/html-to-image.min.js`: Librería de captura de imagen.
-6.  `src/planner/planner-ui.js`: Define `PlannerState` y funciones de renderizado de grilla y acordeones.
-7.  `src/planner/planner.js`: Orquestador: inicializa, enlaza botones y carga datos.
+6.  `src/planner/planner-conflicts.js`: Lógica de detección de conflictos.
+7.  `src/planner/planner-grid.js`: Renderizado de grilla (requiere planner-conflicts.js).
+8.  `src/planner/planner-ui.js`: Gestión de estado y panel izquierdo (requiere planner-conflicts.js, planner-grid.js).
+9.  `src/planner/planner.js`: Orquestador: inicializa, enlaza botones y carga datos.
 
 ---
 
