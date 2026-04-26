@@ -73,7 +73,7 @@ function hasExamConflict(materia, pId) {
   var selectedExams = [];
   Object.keys(PlannerState.selected).forEach(function(sm) {
     var spId = PlannerState.selected[sm];
-    if (sm === materia && spId === pId) return;
+    if (sm === materia) return;   // ignorar completamente la misma materia
     var sp = data[sm] && data[sm].paralelos[spId];
     if (sp && sp.examenes) {
       Object.keys(sp.examenes).forEach(function(ek) {
@@ -135,18 +135,18 @@ function plannerBuildCMap() {
 }
 
 /**
- * Devuelve un arreglo con los nombres de las materias seleccionadas
- * que conflictúan con el paralelo (materia, pId).
+ * Devuelve un arreglo de objetos con los nombres y tipos de conflicto
+ * de las materias seleccionadas que conflictúan con el paralelo (materia, pId).
  * @param {string} materia 
  * @param {string} pId 
- * @returns {string[]}
+ * @returns {Array} array de { name, type }
  */
 function getConflictingMaterialsForParallel(materia, pId) {
   var data = PlannerState.data;
   var mat = data[materia];
   if (!mat || !mat.paralelos || !mat.paralelos[pId]) return [];
   var slots = pbParseH(mat.paralelos[pId].horarios);
-  var conflicting = [];
+  var conflicts = [];  // { name, type }
 
   Object.keys(PlannerState.selected).forEach(function(sm) {
     if (sm === materia) return;
@@ -158,8 +158,8 @@ function getConflictingMaterialsForParallel(materia, pId) {
     // Conflicto de horarios de clase
     var selSlots = pbParseH(selData.paralelos[selPId].horarios);
     if (pbOverlaps(slots, selSlots)) {
-      conflicting.push(sm);
-      return; // ya está en conflicto, no hace falta ver exámenes
+      conflicts.push({ name: sm, type: 'clases' });
+      return;
     }
     
     // Conflicto de exámenes
@@ -179,10 +179,10 @@ function getConflictingMaterialsForParallel(materia, pId) {
         return cStart < sEnd && cEnd > sStart;
       });
     });
-    if (conflictExam) conflicting.push(sm);
+    if (conflictExam) conflicts.push({ name: sm, type: 'examen' });
   });
 
-  return conflicting;
+  return conflicts;
 }
 
 // ── Grilla de horario ────────────────────────────────────────
@@ -269,7 +269,7 @@ function plannerDrawBlocks() {
           'border:1px solid ' + c.ac + '33;' +
           'border-left:3px solid ' + c.ac + ';';
         blk.innerHTML  = '<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' + m + '</div><div style="opacity:.55;font-size:8.5px">P' + pId + '</div>';
-        blk.title      = m + ' · Par. ' + pId + '\n' + sl.raw;
+        blk.title      = m + ' · Par. ' + pId + '\n' + pbStripSec(sl.raw) + (pd.ubicacion ? '\n' + pd.ubicacion : '');
         col.appendChild(blk);
       });
     });
@@ -309,7 +309,7 @@ function plannerDrawExamBlocks() {
       'border:1px dashed ' + c.ac + '66;' +
       'border-left:3px solid ' + c.ac + ';';
     blk.innerHTML  = '<div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">' + m + ' (Examen)</div><div style="opacity:.55;font-size:8.5px">P' + pId + '</div>';
-    blk.title      = m + ' · Examen · Par. ' + pId + '\n' + exam.fecha + ' ' + exam.inicio + '-' + exam.fin;
+    blk.title      = m + ' · Examen · Par. ' + pId + '\n' + exam.fecha + ' ' + exam.inicio + '-' + exam.fin + (exam.aula ? '\n' + exam.aula : '');
     col.appendChild(blk);
   });
 }
@@ -430,7 +430,7 @@ function plannerRenderLeft() {
         '<div class="par-content">' +
           '<span class="par-badge" style="background:' + c.ac + '1a; color:' + c.fg + '; border:1px solid ' + c.ac + '40">Par. ' + pId + '</span>' +
           (prof ? '<div class="par-prof">' + prof + '</div>' : '') +
-          (ubic ? '<div class="par-ubic">📍 ' + ubic + '</div>' : '') +
+          (ubic ? '<div class="par-ubic">' + ubic + '</div>' : '') +
           '<div class="par-slots">' + (slotsHtml || '<span class="slot-pill">Sin horario</span>') + '</div>' +
         '</div>' +
         (hasConflict ? '<span class="sym conflict-icon">warning</span>' : '');
@@ -440,7 +440,10 @@ function plannerRenderLeft() {
         var conflictIcon = item.querySelector('.conflict-icon');
         if (conflictIcon) {
           var conflictingMats = getConflictingMaterialsForParallel(m, pId);
-          conflictIcon.title = 'Conflicto con: ' + conflictingMats.join(', ');
+          var tooltipText = 'Conflicto con: ' + conflictingMats.map(function(c) {
+            return c.name + ' (' + c.type + ')';
+          }).join(', ');
+          conflictIcon.title = tooltipText;
         }
       }
 
@@ -452,11 +455,24 @@ function plannerRenderLeft() {
           var pId       = this.getAttribute('data-paralelo');
           var isCurrentlySelected = (PlannerState.selected[materia] === pId);
 
-          // 1. Actualizar selección
-          if (isCurrentlySelected) {
-            delete PlannerState.selected[materia];
-          } else {
+          // 1. Si se intenta seleccionar, verificar conflicto de examen
+          if (!isCurrentlySelected) {
+            if (hasExamConflict(materia, pId)) {
+              var badge = document.getElementById('conflict-badge');
+              if (badge) {
+                var conflicting = getConflictingMaterialsForParallel(materia, pId);
+                badge.innerHTML = '<span class="sym">warning</span> Conflicto de examen con: ' + conflicting.map(function(c){return c.name;}).join(', ');
+                badge.classList.add('show');
+                setTimeout(function() {
+                  badge.classList.remove('show');
+                  plannerUpdateFooter(); // restaurar estado del badge
+                }, 3000);
+              }
+              return;
+            }
             PlannerState.selected[materia] = pId;
+          } else {
+            delete PlannerState.selected[materia];
           }
 
           // 2. Actualizar UI de forma incremental (sin tocar el estado de colapso)
@@ -528,7 +544,10 @@ function updateLeftPanelState() {
         }
         // Actualizar tooltip con las materias conflictivas
         var conflictingMats = getConflictingMaterialsForParallel(materia, pId);
-        conflictIcon.title = 'Conflicto con: ' + conflictingMats.join(', ');
+        var tooltipText = 'Conflicto con: ' + conflictingMats.map(function(c) {
+          return c.name + ' (' + c.type + ')';
+        }).join(', ');
+        conflictIcon.title = tooltipText;
       } else if (conflictIcon) {
         conflictIcon.remove();
       }

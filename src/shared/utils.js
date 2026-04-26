@@ -40,6 +40,11 @@ var PB_PALETTE = [
 
 // ── Funciones de tiempo ─────────────────────────────────────
 
+/** Elimina los segundos de un string de horario "HH:MM:SS" → "HH:MM". */
+function pbStripSec(h) {
+  return (h || '').replace(/(\d{2}:\d{2}):\d{2}/g, '$1');
+}
+
 /**
  * Convierte "HH:MM" (o "HH:MM:SS") a minutos relativos al inicio de la grilla.
  * @param {string} s

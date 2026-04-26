@@ -1,7 +1,6 @@
 # Polibaldeo — Architecture Reference
 
-> **Target audience:** AI agents and developers onboarding to the codebase.  
-> **Extension version:** 1.3.0 — Manifest V3, modular shared-script architecture.
+> **Target audience:** AI agents and developers onboarding to the codebase.
 
 ---
 

@@ -200,6 +200,107 @@
 
   document.getElementById('btn-capture-image').onclick = _captureScheduleImage;
 
+  // ── Auto-selección de combinación sin conflictos ─────────────
+
+  // ── Función auxiliar para detectar conflictos de clase ───────
+  function _hasClassConflict(materia, pId) {
+    var data = PlannerState.data;
+    var slots = pbParseH(data[materia].paralelos[pId].horarios);
+    var mks = pbMatKeys(data);
+    for (var i = 0; i < mks.length; i++) {
+      var sm = mks[i];
+      if (sm === materia) continue;
+      var selPId = PlannerState.selected[sm];
+      if (!selPId) continue;
+      var selSlots = pbParseH(data[sm].paralelos[selPId].horarios);
+      if (pbOverlaps(slots, selSlots)) return true;
+    }
+    return false;
+  }
+
+  // ── Función shuffle (Fisher‑Yates) ──────────────────────────
+  function _shuffle(arr) {
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var tmp = arr[i];
+      arr[i] = arr[j];
+      arr[j] = tmp;
+    }
+    return arr;
+  }
+
+  // ── Auto‑selección con backtracking aleatorio ───────────────
+  function _autoSelectOptimal() {
+    var mks = pbMatKeys(PlannerState.data);
+    PlannerState.selected = {};
+
+    var total = mks.length;
+    var success = false;
+
+    function backtrack(index) {
+      if (index >= mks.length) {
+        success = true;
+        return true;
+      }
+      var m = mks[index];
+      var pKeys = pbParKeys(PlannerState.data[m]);
+      if (pKeys.length === 0) return false;
+
+      // Mezcla aleatoria de los paralelos disponibles
+      _shuffle(pKeys);
+
+      for (var i = 0; i < pKeys.length; i++) {
+        var pId = pKeys[i];
+        PlannerState.selected[m] = pId;
+        if (!hasExamConflict(m, pId) && !_hasClassConflict(m, pId)) {
+          if (backtrack(index + 1)) return true;
+        }
+        delete PlannerState.selected[m];
+      }
+      return false;
+    }
+
+    backtrack(0);
+
+    // Si no se encontró combinación completa, usar fallback voraz
+    if (!success) {
+      PlannerState.selected = {};
+      for (var i = 0; i < mks.length; i++) {
+        var m = mks[i];
+        var pKeys = pbParKeys(PlannerState.data[m]);
+        var found = false;
+        for (var j = 0; j < pKeys.length; j++) {
+          var pId = pKeys[j];
+          PlannerState.selected[m] = pId;
+          if (!hasExamConflict(m, pId) && !_hasClassConflict(m, pId)) {
+            found = true;
+            break;
+          }
+          delete PlannerState.selected[m];
+        }
+      }
+    }
+
+    plannerRefresh();
+
+    // Mensaje en badge
+    var badge = document.getElementById('conflict-badge');
+    if (badge) {
+      var placed = Object.keys(PlannerState.selected).length;
+      if (placed === total) {
+        badge.innerHTML = '<span class="sym">check_circle</span> ¡Combinación completa encontrada!';
+        badge.classList.add('show');
+        setTimeout(function() { badge.classList.remove('show'); plannerUpdateFooter(); }, 3000);
+      } else {
+        badge.innerHTML = '<span class="sym">info</span> ' + placed + ' materias colocadas, ' + (total - placed) + ' sin opción disponible.';
+        badge.classList.add('show');
+        setTimeout(function() { badge.classList.remove('show'); plannerUpdateFooter(); }, 4000);
+      }
+    }
+  }
+
+  document.getElementById('btn-auto-select')?.addEventListener('click', _autoSelectOptimal);
+
   // ── Alternar vista Clases / Exámenes ─────────────────────────
 
   document.getElementById('btn-toggle-exams').onclick = function() {

@@ -538,3 +538,11 @@
   color: var(--text-sub);
   margin-top: 4px;
 }
+
+.pb-h-label {
+  width: 20px;
+  font-weight: 700;
+  color: var(--text-sub);
+  flex-shrink: 0;
+  text-align: center;
+}

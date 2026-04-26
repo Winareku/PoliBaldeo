@@ -27,10 +27,6 @@ var popupColorCtr = 0;
 //  Helpers de horario e info
 // ═══════════════════════════════════════════════════════════════
 
-function pbStripSec(h) {
-  return (h || '').replace(/(\d{2}:\d{2}):\d{2}/g, '$1');
-}
-
 function pbParseHorarioStr(h) {
   var clean = pbStripSec(h);
   var m = clean.match(/^(\S+)\s+(\d{2}:\d{2})-(\d{2}:\d{2})$/);
@@ -406,26 +402,31 @@ function popupOpenEditModal(materia, pId, isNew) {
     <div class="pb-section-hdr" style="margin-top:12px;">
       <span>Exámenes</span>
     </div>
-    <div class="pb-field-row">
-      <span class="pb-field-label">1</span>
-      <input type="date" class="pb-text-input exam-fecha" id="exam-parcial-fecha" value="${parcial.fecha}" style="max-width:130px;">
-      <input type="text" class="pb-time-input exam-hora" id="exam-parcial-inicio" placeholder="HH:MM" maxlength="5" value="${parcial.inicio}" style="max-width:100px;">
-      <span class="pb-h-sep">–</span>
-      <input type="text" class="pb-time-input exam-hora" id="exam-parcial-fin" placeholder="HH:MM" maxlength="5" value="${parcial.fin}" style="max-width:100px;">
-    </div>
-    <div class="pb-field-row">
-      <span class="pb-field-label">2</span>
-      <input type="date" class="pb-text-input exam-fecha" id="exam-final-fecha" value="${final.fecha}" style="max-width:130px;">
-      <input type="text" class="pb-time-input exam-hora" id="exam-final-inicio" placeholder="HH:MM" maxlength="5" value="${final.inicio}" style="max-width:100px;">
-      <span class="pb-h-sep">–</span>
-      <input type="text" class="pb-time-input exam-hora" id="exam-final-fin" placeholder="HH:MM" maxlength="5" value="${final.fin}" style="max-width:100px;">
-    </div>
-    <div class="pb-field-row">
-      <span class="pb-field-label">3</span>
-      <input type="date" class="pb-text-input exam-fecha" id="exam-mejora-fecha" value="${mejora.fecha}" style="max-width:130px;">
-      <input type="text" class="pb-time-input exam-hora" id="exam-mejora-inicio" placeholder="HH:MM" maxlength="5" value="${mejora.inicio}" style="max-width:100px;">
-      <span class="pb-h-sep">–</span>
-      <input type="text" class="pb-time-input exam-hora" id="exam-mejora-fin" placeholder="HH:MM" maxlength="5" value="${mejora.fin}" style="max-width:100px;">
+    <div id="pb-examenes-container" style="display:flex; flex-direction:column; gap:8px;">
+      <!-- Parcial -->
+      <div class="pb-h-row">
+        <input type="text" class="pb-text-input exam-fecha" id="exam-parcial-fecha" placeholder="YYYY-MM-DD" value="${parcial.fecha}" style="max-width:130px;" pattern="\\d{4}-\\d{2}-\\d{2}">
+        <input type="text" class="pb-time-input" id="exam-parcial-inicio" placeholder="HH:MM" maxlength="5" value="${parcial.inicio}" style="width:65px;">
+        <span class="pb-h-sep">–</span>
+        <input type="text" class="pb-time-input" id="exam-parcial-fin" placeholder="HH:MM" maxlength="5" value="${parcial.fin}" style="width:65px;">
+        <input type="text" class="pb-text-input" id="exam-parcial-aula" placeholder="Aula" value="${parcial.aula || ''}" style="max-width:130px;">
+      </div>
+      <!-- Final -->
+      <div class="pb-h-row">
+        <input type="text" class="pb-text-input exam-fecha" id="exam-final-fecha" placeholder="YYYY-MM-DD" value="${final.fecha}" style="max-width:130px;" pattern="\\d{4}-\\d{2}-\\d{2}">
+        <input type="text" class="pb-time-input" id="exam-final-inicio" placeholder="HH:MM" maxlength="5" value="${final.inicio}" style="width:65px;">
+        <span class="pb-h-sep">–</span>
+        <input type="text" class="pb-time-input" id="exam-final-fin" placeholder="HH:MM" maxlength="5" value="${final.fin}" style="width:65px;">
+        <input type="text" class="pb-text-input" id="exam-final-aula" placeholder="Aula" value="${final.aula || ''}" style="max-width:130px;">
+      </div>
+      <!-- Mejoramiento -->
+      <div class="pb-h-row">
+        <input type="text" class="pb-text-input exam-fecha" id="exam-mejora-fecha" placeholder="YYYY-MM-DD" value="${mejora.fecha}" style="max-width:130px;" pattern="\\d{4}-\\d{2}-\\d{2}">
+        <input type="text" class="pb-time-input" id="exam-mejora-inicio" placeholder="HH:MM" maxlength="5" value="${mejora.inicio}" style="width:65px;">
+        <span class="pb-h-sep">–</span>
+        <input type="text" class="pb-time-input" id="exam-mejora-fin" placeholder="HH:MM" maxlength="5" value="${mejora.fin}" style="width:65px;">
+        <input type="text" class="pb-text-input" id="exam-mejora-aula" placeholder="Aula" value="${mejora.aula || ''}" style="max-width:130px;">
+      </div>
     </div>
   `;
 
@@ -534,8 +535,9 @@ function popupOpenEditModal(materia, pId, isNew) {
       var fecha = modal.getElement('#exam-' + prefix + '-fecha')?.value || '';
       var inicio = modal.getElement('#exam-' + prefix + '-inicio')?.value || '';
       var fin = modal.getElement('#exam-' + prefix + '-fin')?.value || '';
+      var aula = modal.getElement('#exam-' + prefix + '-aula')?.value.trim() || '';
       if (fecha && inicio && fin) {
-        return { fecha: fecha, inicio: inicio, fin: fin };
+        return { fecha: fecha, inicio: inicio, fin: fin, aula: aula };
       }
       return null;
     }
