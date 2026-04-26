@@ -49,6 +49,12 @@ polibaldeo/
     │   ├── components/         # ── Componentes UI reutilizables ──
     │   │   └── modal.js        # Componente PBModal para crear modales dinámicos
     │   │
+    │   ├── fonts/              # ── Fuentes locales ──
+    │   │   ├── plus-jakarta-sans-400.woff2
+    │   │   ├── plus-jakarta-sans-600.woff2
+    │   │   ├── plus-jakarta-sans-700.woff2
+    │   │   └── material-symbols-outlined.woff2
+    │   │
     │   ├── libs/               # ── Librerías de terceros ──
     │   │   └── html-to-image.min.js  # Captura de HTML a imagen PNG
     │   │
