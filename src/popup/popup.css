@@ -429,4 +429,25 @@
   margin-left: auto;
   flex-shrink: 0;
 }
-.pb-h-del:hover { background: rgba(255,180,171,0.12); }
+
+/* Logo de la aplicación */
+.logo-img {
+  width: 28px;
+  height: 28px;
+  filter: invert(1);  /* convierte un SVG negro en blanco */
+  flex-shrink: 0;
+}
+
+/* Botón de Ko‑fi */
+.kofi-link {
+  display: flex;
+  align-items: center;
+  margin-left: 8px;
+  flex-shrink: 0;
+}
+.kofi-link img {
+  width: auto;          /* respeta la proporción original */
+  height: 22px;         /* altura adecuada para el header (ajústala si quieres) */
+  max-width: 150px;     /* evita que sea demasiado ancho */
+  display: block;
+}

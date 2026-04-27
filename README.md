@@ -84,6 +84,12 @@ Para garantizar la disponibilidad de variables globales, los scripts siguen este
 4.  Sube la rama (`git push origin feature/Mejora`).
 5.  Abre un Pull Request.
 
+## ☕ Donaciones
+
+Si PoliBaldeo te ha ayudado a sobrevivir a la semana de matriculación, puedes apoyar el desarrollo del proyecto invitándome a un café. ¡Toda ayuda es bienvenida para mantener la extensión actualizada!
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/winareku)
+
 ## 📝 Licencia
 
 Este proyecto está bajo la Licencia MIT - consulta el archivo `LICENSE` para más detalles.
