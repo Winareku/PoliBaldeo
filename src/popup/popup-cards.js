@@ -188,6 +188,7 @@ function popupBuildMateriaCard(nombre, mat) {
   nameEl.className   = 'materia-name';
   nameEl.textContent = nombre;
   nameEl.title       = nombre;
+  nameEl.style.color = c.fg;
   nameEl.onclick     = function() { popupStartNameEdit(nameEl, card); };
 
   var stepper          = document.createElement('div');
@@ -312,10 +313,23 @@ function popupUpdateCounter() {
 }
 
 function popupRender(data) {
-  // Reiniciar mapa de colores si se cargan datos nuevos desde cero
-  // (para mantener consistencia en orden)
-  popupColorMap = {};
-  popupColorCtr = 0;
+  // Restaurar mapa de colores desde los metadatos (compartido con planner)
+  if (data._colorMap && typeof data._colorMap === 'object') {
+    // Copiar los colores guardados
+    popupColorMap = Object.assign({}, data._colorMap);
+    // Calcular el próximo índice libre
+    var maxIdx = -1;
+    Object.keys(popupColorMap).forEach(function(k) {
+      if (typeof popupColorMap[k] === 'number' && popupColorMap[k] > maxIdx) {
+        maxIdx = popupColorMap[k];
+      }
+    });
+    popupColorCtr = maxIdx + 1;
+  } else {
+    // Si no hay mapa persistente, empezar fresco
+    popupColorMap = {};
+    popupColorCtr = 0;
+  }
 
   PopupState.currentData = data || {};
   var materiasList = document.getElementById('materias-list');

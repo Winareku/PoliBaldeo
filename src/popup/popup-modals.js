@@ -109,6 +109,16 @@ function popupStartNameEdit(nameEl, card) {
         restored.title       = newName;
         popupSaveVisualState();
         popupSetStatus('✅ Nombre actualizado', 'success');
+        // Transferir color en _colorMap
+        if (PopupState.currentData._colorMap) {
+          PopupState.currentData._colorMap[newName] = PopupState.currentData._colorMap[oldName] || popupColorMap[oldName];
+          delete PopupState.currentData._colorMap[oldName];
+        }
+        // Transferir color local
+        popupColorMap[newName] = popupColorMap[oldName];
+        delete popupColorMap[oldName];
+        // Reconstruir todas las tarjetas para actualizar event listeners
+        popupRender(PopupState.currentData);
       }
     } else {
       restored.textContent = oldName;

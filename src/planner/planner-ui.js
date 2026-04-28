@@ -17,13 +17,48 @@ var PlannerState = {
   colorMap     : {},
   colorCtr     : 0,
   showCalendar : true,
+  viewMode     : 'clases',
   // Control de colapso: por defecto todos colapsados
   allCollapsed : true,
   // Mapa individual de colapso (sincronizado con allCollapsed)
   collapsedMap : {},
   // Última materia cuyo acordeón se expandió automáticamente al seleccionar
-  lastExpanded : null
+  lastExpanded : null,
+  isInternalChange: false   // nueva propiedad
 };
+
+// ── Utilidades de persistencia ────────────────────────────────
+
+/**
+ * Guarda la selección actual del planner en chrome.storage.local
+ * bajo la clave _selected.
+ */
+function persistSelection() {
+  // Limpiar selecciones huérfanas
+  Object.keys(PlannerState.selected).forEach(function(m) {
+    if (!PlannerState.data[m] || !PlannerState.data[m].paralelos[PlannerState.selected[m]]) {
+      delete PlannerState.selected[m];
+    }
+  });
+
+  PlannerState.isInternalChange = true;
+  pbLoadData(function(data) {
+    data._selected = JSON.parse(JSON.stringify(PlannerState.selected));
+    pbSaveData(data, function() {
+      PlannerState.isInternalChange = false;
+    });
+  });
+}
+
+function persistColorMap() {
+  PlannerState.isInternalChange = true;
+  pbLoadData(function(data) {
+    data._colorMap = JSON.parse(JSON.stringify(PlannerState.data._colorMap));
+    pbSaveData(data, function() {
+      PlannerState.isInternalChange = false;
+    });
+  });
+}
 
 // Ancho mínimo (px) para mostrar el calendario automáticamente
 var CALENDAR_BREAKPOINT = 700;
@@ -45,6 +80,23 @@ function getParaleloItems(accordion) {
   return accordion.querySelectorAll('.par-item');
 }
 
+function saveCollapsedState() {
+  var state = {};
+  getAccordions().forEach(function(acc) {
+    var materia = acc.getAttribute('data-materia');
+    if (materia) state[materia] = acc.classList.contains('collapsed');
+  });
+  return state;
+}
+
+function restoreCollapsedState(savedState) {
+  Object.keys(savedState).forEach(function(m) {
+    var acc = getAccordionByMateria(m);
+    if (acc) acc.classList.toggle('collapsed', savedState[m]);
+    PlannerState.collapsedMap[m] = savedState[m];
+  });
+}
+
 // ── Panel izquierdo: construcción inicial ─────────────────────
 
 /**
@@ -58,6 +110,8 @@ function plannerRenderLeft() {
   var scroll  = document.getElementById('left-scroll');
   var emptyEl = document.getElementById('empty-state');
   var mks     = pbMatKeys(PlannerState.data);
+
+  if (!PlannerState.data._colorMap) PlannerState.data._colorMap = {};
 
   // Limpiar acordeones anteriores
   scroll.querySelectorAll('.accordion').forEach(function(el) { el.remove(); });
@@ -78,7 +132,14 @@ function plannerRenderLeft() {
   mks.forEach(function(m) {
     var mat = PlannerState.data[m];
     if (PlannerState.colorMap[m] === undefined) {
-      PlannerState.colorMap[m] = (PlannerState.colorCtr++) % PB_PALETTE.length;
+      // Intentar restaurar desde _colorMap
+      if (PlannerState.data._colorMap && PlannerState.data._colorMap[m] !== undefined) {
+        PlannerState.colorMap[m] = PlannerState.data._colorMap[m];
+      } else {
+        PlannerState.colorMap[m] = (PlannerState.colorCtr++) % PB_PALETTE.length;
+        PlannerState.data._colorMap[m] = PlannerState.colorMap[m];
+        persistColorMap();
+      }
     }
     var c      = PB_PALETTE[PlannerState.colorMap[m]];
     var selPar = PlannerState.selected[m] !== undefined ? PlannerState.selected[m] : null;
@@ -133,12 +194,11 @@ function plannerRenderLeft() {
       var isSel      = (selPar === pId);
       var hasConflict = cmap[m + '|' + pId];
       var isConflictUI = !isSel && hasConflict;
-      var isDisabled = !isSel && selPar !== null && !hasConflict;
 
       var cls  = 'par-item';
       if (isSel)      cls += ' par-sel';
       if (isConflictUI) cls += ' par-conflict';
-      else if (isDisabled) cls += ' par-off';
+      // Eliminamos "par-off" completamente
 
       var cbCls = 'par-cb' + (isSel ? ' cb-on' : '');
 
@@ -178,42 +238,30 @@ function plannerRenderLeft() {
         }
       }
 
-      if (!isConflictUI && !isDisabled) {
-        item.addEventListener('click', function(ev) {
-          ev.stopPropagation();
-          var accordion = this.closest('.accordion');
-          var materia   = accordion.getAttribute('data-materia');
-          var pId       = this.getAttribute('data-paralelo');
-          var isCurrentlySelected = (PlannerState.selected[materia] === pId);
+      // Siempre agregamos el listener, sin bloquear conflictos
+      item.addEventListener('click', function(ev) {
+        ev.stopPropagation();
+        var accordion = this.closest('.accordion');
+        var materia   = accordion.getAttribute('data-materia');
+        var pId       = this.getAttribute('data-paralelo');
+        var isCurrentlySelected = (PlannerState.selected[materia] === pId);
 
-          // 1. Si se intenta seleccionar, verificar conflicto de examen
-          if (!isCurrentlySelected) {
-            if (hasExamConflict(materia, pId)) {
-              var badge = document.getElementById('conflict-badge');
-              if (badge) {
-                var conflicting = getConflictingMaterialsForParallel(materia, pId);
-                badge.innerHTML = '<span class="sym">warning</span> Conflicto de examen con: ' + conflicting.map(function(c){return c.name;}).join(', ');
-                badge.classList.add('show');
-                setTimeout(function() {
-                  badge.classList.remove('show');
-                  plannerUpdateFooter(); // restaurar estado del badge
-                }, 3000);
-              }
-              return;
-            }
-            PlannerState.selected[materia] = pId;
-          } else {
-            delete PlannerState.selected[materia];
-          }
+        // Simplemente alternar la selección
+        if (isCurrentlySelected) {
+          delete PlannerState.selected[materia];
+        } else {
+          PlannerState.selected[materia] = pId;
+        }
 
-          // 2. Actualizar UI de forma incremental (sin tocar el estado de colapso)
-          updateLeftPanelState();
+        persistSelection();
 
-          // 3. Redibujar bloques y footer
-          plannerDrawBlocks();
-          plannerUpdateFooter();
-        });
-      }
+        // Actualizar UI de forma incremental
+        updateLeftPanelState();
+
+        // Redibujar bloques y footer
+        plannerDrawBlocks();
+        plannerUpdateFooter();
+      });
 
       body.appendChild(item);
     });
@@ -251,12 +299,10 @@ function updateLeftPanelState() {
       var isSel      = (selPar === pId);
       var hasConflict = cmap[materia + '|' + pId];
       var isConflictUI = !isSel && hasConflict;
-      var isDisabled = !isSel && !!selPar && !hasConflict;
 
       // Actualizar clases del ítem
       item.classList.toggle('par-sel', isSel);
       item.classList.toggle('par-conflict', isConflictUI);
-      item.classList.toggle('par-off', isDisabled);
 
       // Actualizar checkbox visual
       var cb = item.querySelector('.par-cb');
@@ -283,6 +329,76 @@ function updateLeftPanelState() {
         conflictIcon.remove();
       }
     });
+  });
+}
+
+function updateParaleloDetails() {
+  var cmap = plannerBuildCMap();
+  getAccordions().forEach(function(acc) {
+    var materia = acc.getAttribute('data-materia');
+    var matData = PlannerState.data[materia];
+    if (!matData) return;
+    var selPar = PlannerState.selected[materia] || null;
+    getParaleloItems(acc).forEach(function(item) {
+      var pId = item.getAttribute('data-paralelo');
+      var pd = matData.paralelos && matData.paralelos[pId];
+      if (!pd) {
+        // El paralelo fue eliminado → eliminar el item del DOM (y persistir selección si estaba seleccionado)
+        item.remove();
+        return;
+      }
+
+      // Actualizar profesor
+      var profEl = item.querySelector('.par-prof');
+      if (profEl) {
+        var prof = pd.profesor || '';
+        if (!prof) {
+          var profMatch = (pd.info || '').match(/Profesor:\s*(.+)/);
+          prof = profMatch ? profMatch[1].trim() : '';
+        }
+        profEl.textContent = prof || 'Sin profesor';
+      }
+
+      // Actualizar ubicación
+      var ubicEl = item.querySelector('.par-ubic');
+      if (ubicEl) {
+        ubicEl.textContent = pd.ubicacion || '';
+      }
+
+      // Actualizar slots de horarios
+      var slotsContainer = item.querySelector('.par-slots');
+      if (slotsContainer) {
+        var slotsHtml = (pd.horarios || []).map(function(h) {
+          return '<span class="slot-pill">' + h + '</span>';
+        }).join('');
+        slotsContainer.innerHTML = slotsHtml || '<span class="slot-pill">Sin horario</span>';
+      }
+
+      // Actualizar conflicto
+      var hasConflict = cmap[materia + '|' + pId];
+      var isSel = (selPar === pId);
+      item.classList.toggle('par-conflict', !isSel && hasConflict);
+      var conflictIcon = item.querySelector('.conflict-icon');
+      if (hasConflict && !isSel) {
+        if (!conflictIcon) {
+          conflictIcon = document.createElement('span');
+          conflictIcon.className = 'sym conflict-icon';
+          conflictIcon.textContent = 'warning';
+          item.appendChild(conflictIcon);
+        }
+        var conflictingMats = getConflictingMaterialsForParallel(materia, pId);
+        conflictIcon.title = 'Conflicto con: ' + conflictingMats.map(function(c) {
+          return c.name + ' (' + c.type + ')';
+        }).join(', ');
+      } else if (conflictIcon && !hasConflict) {
+        conflictIcon.remove();
+      }
+    });
+    // Actualizar chip de créditos
+    var credChip = acc.querySelector('.chip-cred');
+    if (credChip && matData) {
+      credChip.textContent = (matData.creditos || '0') + '\u202fcr';
+    }
   });
 }
 
@@ -316,7 +432,9 @@ function plannerUpdateFooter() {
  * Para cambios de selección usar updateLeftPanelState().
  */
 function plannerFullRefresh() {
+  var savedCollapsed = saveCollapsedState();
   plannerRenderLeft();
+  restoreCollapsedState(savedCollapsed);
   plannerDrawBlocks();
   plannerUpdateFooter();
 }
@@ -324,7 +442,10 @@ function plannerFullRefresh() {
 // Versión mantenida por compatibilidad con planner.js
 function plannerRefresh() {
   var existingAccordions = getAccordions();
-  if (existingAccordions.length > 0) {
+  var currentMks = pbMatKeys(PlannerState.data);
+  if (existingAccordions.length !== currentMks.length) {
+    plannerFullRefresh();
+  } else if (existingAccordions.length > 0) {
     updateLeftPanelState();
     plannerDrawBlocks();
     plannerUpdateFooter();

@@ -12,28 +12,42 @@
   - **Navegador de paralelos**: Menú de navegación entre paralelos de una misma materia estilo Material 3, ubicado debajo del título de la página.
   - **Planificador Visual (Planner)**: Interfaz dedicada con una rejilla semanal para visualizar la carga académica. Incluye una vista alternativa para mostrar únicamente los exámenes parciales.
   - **Detección de Conflictos**: Sistema automático que identifica y resalta cruces de horarios entre paralelos seleccionados, incluyendo conflictos entre exámenes. Muestra las materias conflictivas al pasar el ratón sobre el icono de advertencia.
-  - **Auto‑selección inteligente**: Botón "dado" que busca automáticamente una combinación de paralelos sin conflictos mediante backtracking aleatorio.
+  - **Auto‑selección inteligente**: Botón "dado" que busca automáticamente una combinación de paralelos sin conflictos mediante backtracking aleatorio, notificando el resultado con elegantes toasts.
+  - **Persistencia y sincronización**: La selección del planner se guarda automáticamente y se restaura al reabrir. Los cambios realizados en el popup se reflejan al instante en el planner, y viceversa. Los colores de las materias se mantienen coherentes en toda la extensión.
   - **Zero-Backend**: Los datos se gestionan localmente en el navegador mediante `chrome.storage.local`, garantizando privacidad y rapidez.
   - **Exportación Versátil**:
       - Genera archivos `.poli` en formato JSON para respaldo y transferencia.
       - Exporta a formato iCalendar (`.ics`) para sincronizar con Google Calendar, Outlook o Apple Calendar.
       - Captura la vista del horario como imagen PNG, lista para compartir.
   - **Interfaz Material 3 Dark**: Diseño oscuro moderno con paleta de colores consistente, toasts unificados y modales dinámicos.
-  - **Toasts unificados**: Notificaciones visuales con botón de cierre y opción de deshacer.
-  - **Colores por materia**: Cada materia tiene un color distintivo en el popup y el planner, siguiendo una paleta armonizada.
+  - **Toasts unificados**: Notificaciones visuales con botón de cierre y opción de deshacer, presentes tanto en el popup como en el planner.
+  - **Colores por materia**: Cada materia tiene un color distintivo en el popup y el planner, siguiendo una paleta armonizada que se conserva incluso al renombrar materias.
 
-## 🛠️ Instalación (Modo Desarrollador)
+## 🛠️ Instalación
 
-Actualmente, la extensión se puede instalar cargando el código fuente directamente en Chrome:
+### Opción 1: Instalar desde la Chrome Web Store (recomendada)
+
+Puedes instalar PoliBaldeo directamente desde la Chrome Web Store:
+
+[![Disponible en Chrome Web Store](https://img.shields.io/badge/Chrome-141e24.svg?&style=for-the-badge&logo=google-chrome&logoColor=white)](https://chromewebstore.google.com/detail/polpjnkemhjlmadehenohmpjgnmjonpb?utm_source=item-share-cb)
+
+Haz clic en el enlace y pulsa "Añadir a Chrome".
+
+### Opción 2: Instalación manual (modo desarrollador)
+
+Si prefieres cargar la extensión desde el código fuente:
 
 1.  Descarga o clona este repositorio:
+
     ```bash
     git clone https://github.com/Winareku/PoliBaldeo.git
     ```
 2.  Abre tu navegador y ve a `chrome://extensions/`.
 3.  Activa el **"Modo de desarrollador"** en la esquina superior derecha.
 4.  Haz clic en el botón **"Cargar extensión sin empaquetar"**.
-5.  Selecciona la carpeta raíz del proyecto.
+5.  Selecciona la carpeta **`src`** (no la raíz del repositorio) que contiene el archivo `manifest.json`.
+
+**Importante:** La carpeta que debes seleccionar es `src`, no la carpeta principal `PoliBaldeo`. Dentro de `src` se encuentra el `manifest.json` y todo el código necesario.
 
 ## 📂 Arquitectura del Proyecto
 

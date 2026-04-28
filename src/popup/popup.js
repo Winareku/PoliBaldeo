@@ -74,6 +74,10 @@
             });
           }
         });
+        // Asegurar que el campo _selected exista
+        if (!data._selected || typeof data._selected !== 'object') {
+          data._selected = {};
+        }
         return data;
       }
     } catch(e) { /* no es JSON, probar formato antiguo */ }
@@ -84,6 +88,7 @@
 
   function parseOldPoliFormat(text) {
     var data = { _order: [] };
+    data._selected = {};
     var blocks = text.trim().split(/\n[ \t]*\n/);
 
     blocks.forEach(function (block) {

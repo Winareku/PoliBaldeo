@@ -67,7 +67,10 @@ function plannerBuildCMap() {
   mks.forEach(function(m) {
     var p = PlannerState.selected[m];
     if (p) {
-      selSlots[m] = pbParseH(PlannerState.data[m].paralelos[p].horarios);
+      // AÑADE ESTA LÍNEA DE SEGURIDAD
+      if (PlannerState.data[m] && PlannerState.data[m].paralelos[p]) {
+        selSlots[m] = pbParseH(PlannerState.data[m].paralelos[p].horarios);
+      }
     }
   });
 
@@ -118,7 +121,6 @@ function getConflictingMaterialsForParallel(materia, pId) {
     var selSlots = pbParseH(selData.paralelos[selPId].horarios);
     if (pbOverlaps(slots, selSlots)) {
       conflicts.push({ name: sm, type: 'clases' });
-      return;
     }
     
     // Conflicto de exámenes

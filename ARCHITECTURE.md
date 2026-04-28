@@ -1,6 +1,7 @@
 # Polibaldeo — Architecture Reference
 
-> **Target audience:** AI agents and developers onboarding to the codebase.
+> **Target audience:** AI agents and developers onboarding to the codebase.  
+> **Extension version:** 1.3.5 — Manifest V3, modular shared-script architecture.
 
 ---
 
@@ -8,18 +9,18 @@
 
 Polibaldeo es una extensión de Chrome diseñada para asistir a los estudiantes de la **ESPOL** (Escuela Superior Politécnica del Litoral) durante el proceso de matriculación. Opera exclusivamente en el portal académico de la universidad y ofrece dos capacidades principales:
 
-1.  **Capture (Captura):** Un script de contenido inyecta un botón en la página de detalles de la materia. Al hacer clic, extrae los datos de horarios del paralelo, los exámenes (parcial, final, mejoramiento), el profesor y la ubicación, y los persiste en `chrome.storage.local`.
-2.  **Plan & Organize (Planificación):** Un panel lateral (Side Panel) y una ventana de planificador independiente leen los datos almacenados, renderizan una cuadrícula de horarios semanal, detectan conflictos de tiempo (incluyendo solapamiento de exámenes), permiten alternar entre la vista de clases y la vista de exámenes, exportar la selección a imagen PNG o a calendario, y gestionar los datos mediante importación/exportación en formato JSON.
+1.  **Capture (Captura):** Un script de contenido inyecta un botón y un navegador de paralelos en la página de detalles de la materia. Al hacer clic, extrae los datos de horarios del paralelo, los exámenes (parcial, final, mejoramiento), el profesor y la ubicación, y los persiste en `chrome.storage.local`.
+2.  **Plan & Organize (Planificación):** Un panel lateral (Side Panel) y una ventana de planificador independiente leen los datos almacenados, renderizan una cuadrícula de horarios semanal, detectan conflictos de tiempo (incluyendo solapamiento de exámenes), permiten alternar entre la vista de clases y la vista de exámenes, exportar la selección a imagen PNG o a calendario, y gestionar los datos mediante importación/exportación en formato JSON. La selección del usuario, la configuración de colores y el estado de los acordeones se conservan automáticamente y se sincronizan entre las distintas vistas.
 
 ### Chrome APIs used
 
 | API | Why |
 |---|---|
-| `chrome.storage.local` | Persiste los datos de materias/paralelos. Accesible desde scripts de contenido, el service worker y las páginas de la extensión. |
-| `chrome.sidePanel` | Mantiene la interfaz de usuario de la extensión abierta de forma persistente en la barra lateral mientras el usuario navega por el portal. |
+| `chrome.storage.local` | Persiste los datos de materias, paralelos, selección del usuario, mapa de colores y otros metadatos. |
+| `chrome.sidePanel` | Mantiene la interfaz de usuario de la extensión abierta de forma persistente en la barra lateral. |
 | `chrome.action` | Escucha los clics en el icono de la barra de herramientas para abrir el Side Panel. |
-| `chrome.windows.create()` | Abre el planificador principal como una ventana emergente dedicada (no una pestaña) para separar la UI de planificación del contexto de navegación. |
-| `chrome.storage.onChanged` | Permite que la UI se actualice automáticamente cuando el script de contenido registra un nuevo paralelo. |
+| `chrome.windows.create()` | Abre el planificador principal como una ventana emergente dedicada (no una pestaña). |
+| `chrome.storage.onChanged` | Permite que el Side Panel y el Planificador se actualicen en tiempo real cuando cualquiera de ellos modifica los datos. |
 
 ---
 
@@ -55,10 +56,15 @@ polibaldeo/
     │   │   ├── plus-jakarta-sans-700.woff2
     │   │   └── material-symbols-outlined.woff2
     │   │
+    │   ├── icons/              # ── Iconos adicionales ──
+    │   │   ├── polibaldeo_logo.svg
+    │   │   └── kofi_button.svg
+    │   │
     │   ├── libs/               # ── Librerías de terceros ──
     │   │   └── html-to-image.min.js  # Captura de HTML a imagen PNG
     │   │
     │   └── styles/             # ── Hojas de estilo modulares ──
+    │       ├── fonts.css       # Definiciones @font-face para fuentes locales
     │       ├── variables.css   # Variables globales de color y tipografía
     │       ├── base.css        # Reset y estilos base
     │       ├── buttons.css     # Componentes de botones reutilizables
@@ -83,7 +89,7 @@ polibaldeo/
         ├── planner-conflicts.js# Lógica de detección de conflictos (horarios y exámenes)
         ├── planner-grid.js     # Renderizado de la grilla de horarios
         ├── planner-ui.js       # Gestión de estado y panel izquierdo (acordeones)
-        ├── planner.js          # Orquestador: lógica de selección y botones
+        ├── planner.js          # Orquestador: lógica de selección, botones y sistema de toasts local
         └── test.js             # Validación de lógica de conflictos (off-browser)
 ```
 
@@ -113,7 +119,7 @@ Define las variables globales de estado del panel:
 - `PopupState`: Objeto con `currentData` (materias y paralelos) e `isInternalChange` (flag de sincronización).
 - `EditModalState`: Contexto para el modal de edición de paralelos.
 - `popupColorMap` y `popupColorCtr`: Mapeo de colores de la paleta para cada materia.
-- `popupSaveVisualState()`: Persiste el estado visual (orden, créditos, estado colapsado) en el almacenamiento.
+- `popupSaveVisualState()`: Persiste el estado visual (orden, créditos, estado colapsado) en el almacenamiento, preservando los metadatos existentes como `_selected` y `_colorMap`.
 
 ### `src/popup/popup-toasts.js` — Sistema de Notificaciones
 Implementa un sistema de toasts para notificaciones al usuario:
@@ -126,13 +132,13 @@ Contiene todos los modales de la interfaz:
 - `pbConfirm(msg, onOk, onCancel)`: Modal genérico de confirmación.
 - `popupOpenEditModal(materia, pId, isNew)`: Modal para editar/crear paralelos (horarios, profesor, ubicación, exámenes).
 - `popupOpenMateriaModal()`: Modal para crear nuevas materias.
-- `popupStartNameEdit(nameEl, card)`: Edición inline del nombre de materia.
+- `popupStartNameEdit(nameEl, card)`: Edición inline del nombre de materia; transfiere el color al renombrar y regenera la vista completa.
 - Helpers: `pbParseHorarioStr()`, `pbParseInfo()`, `pbBuildInfo()`, `_pbNextParId()`.
 
 ### `src/popup/popup-cards.js` — Renderizado de UI
 Funciones de construcción y renderizado de elementos DOM:
-- `popupRender(data)`: Punto de entrada principal, renderiza la lista de materias.
-- `popupBuildMateriaCard(nombre, mat)`: Crea la tarjeta de una materia con controles.
+- `popupRender(data)`: Punto de entrada principal, renderiza la lista de materias; restaura los colores desde `_colorMap` si existe.
+- `popupBuildMateriaCard(nombre, mat)`: Crea la tarjeta de una materia con controles; el nombre de la materia se colorea con el color de su paleta.
 - `popupBuildParaleloItem(nombreMateria, nParalelo, data, parentList)`: Crea un item de paralelo.
 - `popupToggleCollapseAll()`: Alterna el estado colapsado de todas las materias.
 - `popupUpdateCounter()`: Actualiza el contador de materias en el header.
@@ -152,7 +158,7 @@ Módulo que detecta conflictos de horarios y exámenes:
 - `timeToMin(hhmm)`: Convierte hora a minutos.
 - `hasExamConflict(materia, pId)`: Verifica si un paralelo tiene conflicto de examen.
 - `plannerBuildCMap()`: Construye mapa de conflictos para todos los paralelos no seleccionados.
-- `getConflictingMaterialsForParallel(materia, pId)`: Retorna lista de materias conflictivas.
+- `getConflictingMaterialsForParallel(materia, pId)`: Retorna lista de materias conflictivas, indicando si el conflicto es de clases o de examen.
 
 ### `src/planner/planner-grid.js` — Renderizado de Grilla
 Funciones de construcción y renderizado de la grilla de horarios:
@@ -168,26 +174,32 @@ Gestión centralizada del estado y renderizado del panel izquierdo:
 - `plannerRenderLeft()`: Construye acordeones del panel izquierdo.
 - `updateLeftPanelState()`: Actualización incremental del estado visual.
 - `plannerUpdateFooter()`: Actualiza contador de créditos y badge de conflictos.
-- `plannerFullRefresh()`: Refresco completo (para cambios estructurales).
+- `plannerFullRefresh()`: Refresco completo (para cambios estructurales) que preserva el estado de colapso.
 - `plannerRefresh()`: Refresco inteligente (incremental o completo según sea necesario).
 - `plannerToggleCollapseAll()`: Toggle de colapso de todos los acordeones.
 - `plannerApplyCalendarVisibility()`, `plannerToggleCalendar()`: Control de visibilidad del calendario.
 - `plannerInitResizeObserver()`: Inicializa ResizeObserver para auto-ocultar al encoger.
+- `persistSelection()`: Guarda la selección actual en `chrome.storage` bajo la clave `_selected`.
+- `persistColorMap()`: Guarda el mapa de colores en `_colorMap` para sincronizar colores con el popup.
+- `saveCollapsedState()` / `restoreCollapsedState()`: Preservan el estado de colapso durante reconstrucciones.
+- `updateParaleloDetails()`: Actualiza los textos de los ítems (profesor, ubicación, horarios, conflictos, créditos) sin reconstruir el panel.
 
 ### `src/planner/planner.js` — Orquestador del Planificador
 Coordina la inicialización y gestiona las acciones principales:
-- **Inicialización:** Carga datos desde `chrome.storage` y construye la interfaz.
+- **Inicialización:** Carga datos desde `chrome.storage`, restaura selección y colores desde `_selected` y `_colorMap`, y construye la interfaz.
 - **Listeners:** Enlaza eventos de botones (deseleccionar, colapsar, toggle calendario, etc.).
-- **Sincronización:** Escucha cambios de almacenamiento para actualizar la vista.
+- **Sincronización:** Escucha cambios de almacenamiento para actualizar la vista. Según el tipo de cambio detectado (número de materias, orden, contenido de paralelos, créditos, etc.), ejecuta una reconstrucción completa, una actualización de detalles o un refresco ligero.
 - **Modos:** Maneja vista de clases vs. vista de exámenes.
 - **Exportación:** Integración con `ics-exporter.js` y `html-to-image` para descargar datos.
+- **Sistema de toasts local:** Proporciona `plannerSetStatus(msg, type)` para notificaciones temporales que no compiten con el badge de conflictos del footer.
+- **Auto‑selección:** Algoritmo de backtracking aleatorio para encontrar combinaciones sin conflictos, con fallback voraz y feedback mediante toasts.
 
 ### CSS Modular (`src/shared/styles/`)
 - **`variables.css`**: Centraliza los colores, bordes y tipografía usados en toda la extensión.
 - **`base.css`**: Aplica un reset consistente y estilos base para `html`, `body` y la clase `.sym`.
 - **`buttons.css`**: Define variantes de botones (`.btn`, `.btn-primary`, `.btn-surface`, etc.) reutilizables.
 - **`modal.css`**: Estilos genéricos para overlays y modales, compartidos por todos los diálogos de la extensión.
-- **`components.css`**: Componentes visuales compartidos (stepper de créditos, píldoras, tags de horarios y exámenes). Evita la duplicación entre popup y planner.
+- **`components.css`**: Componentes visuales compartidos (stepper de créditos, píldoras, tags de horarios y exámenes) que evitan la duplicación entre popup y planner.
 
 ---
 
@@ -197,7 +209,7 @@ El flujo de información en Polibaldeo sigue un modelo descentralizado basado en
 
 1.  **Captura:** Cuando el usuario interactúa con la página de ESPOL, `content-scraper.js` extrae la información (incluyendo exámenes) y la envía directamente a `chrome.storage.local`. No hay comunicación directa (mensajería) entre el script de contenido y la UI; el almacenamiento actúa como la "fuente de verdad".
 2.  **Notificación Reactiva:** El Side Panel (`popup.js`) y el Planificador (`planner.js`) mantienen listeners activos sobre el almacenamiento. En cuanto los datos cambian, estas interfaces activan sus funciones de renderizado para mostrar la nueva materia o paralelo sin necesidad de recargar.
-3.  **Gestión de Estado de UI:** Las preferencias visuales, como si una tarjeta de materia está colapsada o el número de créditos asignado manualmente, se guardan en el mismo objeto de datos para asegurar que la experiencia sea consistente entre el panel lateral y el planificador.
+3.  **Gestión de Estado de UI:** Las preferencias visuales, como si una tarjeta de materia está colapsada o el número de créditos asignado manualmente, se guardan en el mismo objeto de datos, junto con metadatos como la selección del planner (`_selected`) y el mapa de colores (`_colorMap`). Esto asegura que la experiencia sea consistente entre el panel lateral y el planificador, incluso después de renombrar materias o reordenar elementos.
 4.  **Salida de Datos:** Para la exportación, los módulos `exporter.js` (JSON) e `ics-exporter.js` (iCalendar) toman el estado actual del almacenamiento y las selecciones activas en el planificador para generar archivos descargables de forma local mediante Blobs de JavaScript. Adicionalmente, el planner puede exportar la vista como imagen PNG.
 
 ---

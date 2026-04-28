@@ -11,12 +11,88 @@
 (function() {
   "use strict";
 
+  // ── Sistema de toasts (compartido con popup) ─────────────────
+  var _plannerToastQueue = [];
+
+  function _removePlannerToast(entry, immediate) {
+    if (!entry || !entry.el) return;
+    clearTimeout(entry.timer);
+    var idx = _plannerToastQueue.indexOf(entry);
+    if (idx > -1) _plannerToastQueue.splice(idx, 1);
+    if (immediate) {
+      entry.el.remove();
+    } else {
+      entry.el.classList.add('removing');
+      setTimeout(function() {
+        if (entry.el.parentNode) entry.el.parentNode.removeChild(entry.el);
+      }, 250);
+    }
+  }
+
+  /**
+   * Muestra un toast simple en el planner.
+   * @param {string} msg
+   * @param {string} type - 'success', 'warning', 'info'
+   */
+  function plannerSetStatus(msg, type) {
+    var container = document.getElementById('toast-container');
+    if (!container) return;
+    var toast = document.createElement('div');
+    toast.className = 'pb-toast ' + (type || 'info');
+    var msgSpan = document.createElement('span');
+    msgSpan.className = 'toast-msg';
+    msgSpan.textContent = msg;
+    var closeBtn = document.createElement('button');
+    closeBtn.className = 'toast-close';
+    closeBtn.innerHTML = '&times;';
+    closeBtn.setAttribute('aria-label', 'Cerrar');
+    toast.appendChild(msgSpan);
+    toast.appendChild(closeBtn);
+    container.appendChild(toast);
+    var entry = { el: toast, timer: null };
+    closeBtn.onclick = function() { _removePlannerToast(entry, false); };
+    entry.timer = setTimeout(function() { _removePlannerToast(entry, false); }, 4000);
+    _plannerToastQueue.push(entry);
+  }
+
+  // Diálogo de confirmación genérico (usa PBModal)
+  function plannerConfirm(msg, onOk) {
+    var modal = PBModal.create({
+      title: 'Confirmar',
+      body: '<p style="font-size:14px;line-height:1.5;color:var(--text-main);">' + msg + '</p>',
+      footer: `
+        <button class="btn btn-outline" id="modal-cancel">Cancelar</button>
+        <button class="btn btn-primary" id="modal-ok">Confirmar</button>
+      `
+    });
+    modal.open();
+    modal.getElement('#modal-cancel').onclick = function() { modal.destroy(); };
+    modal.getElement('#modal-ok').onclick = function() {
+      modal.destroy();
+      if (typeof onOk === 'function') onOk();
+    };
+  }
+
   // ── Inicialización ──────────────────────────────────────────
 
   function init() {
     PlannerState.viewMode = 'clases';
     pbLoadData(function(data) {
       PlannerState.data = data;
+      // Restaurar selección guardada
+      if (data._selected && typeof data._selected === 'object') {
+        PlannerState.selected = data._selected;
+      } else {
+        PlannerState.selected = {};
+      }
+      if (data._colorMap && typeof data._colorMap === 'object') {
+        PlannerState.colorMap = Object.assign({}, data._colorMap);
+        var maxIdx = -1;
+        Object.keys(data._colorMap).forEach(function(k) {
+          maxIdx = Math.max(maxIdx, data._colorMap[k]);
+        });
+        PlannerState.colorCtr = maxIdx + 1;
+      }
       plannerBuildGrid();
       plannerRefresh();
       plannerInitResizeObserver();
@@ -27,8 +103,12 @@
   // ── Botones de header ───────────────────────────────────────
 
   document.getElementById('btn-deselect-all').onclick = function() {
-    PlannerState.selected = {};
-    plannerRefresh();
+    if (Object.keys(PlannerState.selected).length === 0) return;
+    plannerConfirm('¿Deseleccionar todos los paralelos?', function() {
+      PlannerState.selected = {};
+      persistSelection();
+      plannerRefresh();
+    });
   };
 
   document.getElementById('btn-collapse-all').onclick = plannerToggleCollapseAll;
@@ -37,29 +117,13 @@
 
   var _icsWeeks = 18;
 
-  function _plannerWarnBadge(msg) {
-    var badge = document.getElementById('conflict-badge');
-    if (!badge) return;
-    var prevHTML = badge.innerHTML;
-    badge.innerHTML = '<span class="sym">warning</span> ' + msg;
-    badge.classList.add('show');
-    setTimeout(function() {
-      badge.innerHTML = prevHTML;
-      if (typeof plannerUpdateFooter === 'function') {
-        plannerUpdateFooter();
-      } else {
-        badge.classList.remove('show');
-      }
-    }, 2500);
-  }
-
   function _icsOpenModal() {
     var hasSelection = PlannerState.selected &&
       Object.keys(PlannerState.selected).some(function(m) {
         return !!PlannerState.selected[m];
       });
     if (!hasSelection) {
-      _plannerWarnBadge('Selecciona al menos un paralelo');
+      plannerSetStatus('Selecciona al menos un paralelo', 'warning');
       return;
     }
 
@@ -122,7 +186,7 @@
       if (ok) {
         modal.destroy();
       } else {
-        _plannerWarnBadge('Selecciona al menos un paralelo');
+        plannerSetStatus('Selecciona al menos un paralelo', 'warning');
         modal.destroy();
       }
     };
@@ -145,7 +209,7 @@
     // No hacer nada si el calendario está oculto
     if (!rightPanel || !gridScroll || !scheduleGrid) return;
     if (rightPanel.style.display === 'none') {
-      _plannerWarnBadge('El calendario está oculto');
+      plannerSetStatus('El calendario está oculto', 'warning');
       return;
     }
 
@@ -234,75 +298,92 @@
 
   // ── Auto‑selección con backtracking aleatorio ───────────────
   function _autoSelectOptimal() {
-    var mks = pbMatKeys(PlannerState.data);
-    PlannerState.selected = {};
+    var btn = document.getElementById('btn-auto-select');
+    if (btn) btn.disabled = true;
 
-    var total = mks.length;
-    var success = false;
+    plannerSetStatus('🎲 Buscando combinación…', 'info');
 
-    function backtrack(index) {
-      if (index >= mks.length) {
-        success = true;
-        return true;
-      }
-      var m = mks[index];
-      var pKeys = pbParKeys(PlannerState.data[m]);
-      if (pKeys.length === 0) return false;
-
-      // Mezcla aleatoria de los paralelos disponibles
-      _shuffle(pKeys);
-
-      for (var i = 0; i < pKeys.length; i++) {
-        var pId = pKeys[i];
-        PlannerState.selected[m] = pId;
-        if (!hasExamConflict(m, pId) && !_hasClassConflict(m, pId)) {
-          if (backtrack(index + 1)) return true;
-        }
-        delete PlannerState.selected[m];
-      }
-      return false;
-    }
-
-    backtrack(0);
-
-    // Si no se encontró combinación completa, usar fallback voraz
-    if (!success) {
+    // Usar setTimeout para permitir que el DOM se actualice antes del bloqueo
+    setTimeout(function() {
+      var mks = pbMatKeys(PlannerState.data);
       PlannerState.selected = {};
-      for (var i = 0; i < mks.length; i++) {
-        var m = mks[i];
+
+      var total = mks.length;
+      var success = false;
+
+      function backtrack(index) {
+        if (index >= mks.length) {
+          success = true;
+          return true;
+        }
+        var m = mks[index];
         var pKeys = pbParKeys(PlannerState.data[m]);
-        var found = false;
-        for (var j = 0; j < pKeys.length; j++) {
-          var pId = pKeys[j];
+        if (pKeys.length === 0) return false;
+
+        // Mezcla aleatoria de los paralelos disponibles
+        _shuffle(pKeys);
+
+        for (var i = 0; i < pKeys.length; i++) {
+          var pId = pKeys[i];
           PlannerState.selected[m] = pId;
           if (!hasExamConflict(m, pId) && !_hasClassConflict(m, pId)) {
-            found = true;
-            break;
+            if (backtrack(index + 1)) return true;
           }
           delete PlannerState.selected[m];
         }
+        return false;
       }
-    }
 
-    plannerRefresh();
+      backtrack(0);
 
-    // Mensaje en badge
-    var badge = document.getElementById('conflict-badge');
-    if (badge) {
+      // Si no se encontró combinación completa, usar fallback voraz
+      if (!success) {
+        PlannerState.selected = {};
+        for (var i = 0; i < mks.length; i++) {
+          var m = mks[i];
+          var pKeys = pbParKeys(PlannerState.data[m]);
+          var found = false;
+          for (var j = 0; j < pKeys.length; j++) {
+            var pId = pKeys[j];
+            PlannerState.selected[m] = pId;
+            if (!hasExamConflict(m, pId) && !_hasClassConflict(m, pId)) {
+              found = true;
+              break;
+            }
+            delete PlannerState.selected[m];
+          }
+        }
+      }
+
+      plannerRefresh();
+
       var placed = Object.keys(PlannerState.selected).length;
-      if (placed === total) {
-        badge.innerHTML = '<span class="sym">check_circle</span> ¡Combinación completa encontrada!';
-        badge.classList.add('show');
-        setTimeout(function() { badge.classList.remove('show'); plannerUpdateFooter(); }, 3000);
-      } else {
-        badge.innerHTML = '<span class="sym">info</span> ' + placed + ' materias colocadas, ' + (total - placed) + ' sin opción disponible.';
-        badge.classList.add('show');
-        setTimeout(function() { badge.classList.remove('show'); plannerUpdateFooter(); }, 4000);
-      }
-    }
+      finishAutoSelect(placed, total, btn);
+    }, 50);
   }
 
-  document.getElementById('btn-auto-select')?.addEventListener('click', _autoSelectOptimal);
+  document.getElementById('btn-auto-select')?.addEventListener('click', function() {
+    var hasSelection = Object.keys(PlannerState.selected).length > 0;
+    if (hasSelection) {
+      plannerConfirm('¿Reemplazar la selección actual por una combinación aleatoria sin conflictos?', function() {
+        _autoSelectOptimal();
+      });
+    } else {
+      _autoSelectOptimal();
+    }
+  });
+
+  // ── Función para finalizar auto-selección ────────────────────
+
+  function finishAutoSelect(placed, total, btn) {
+    if (btn) btn.disabled = false;
+    if (placed === total) {
+      plannerSetStatus('✅ Combinación completa (' + placed + '/' + total + ')', 'success');
+    } else {
+      plannerSetStatus('⚠️ ' + placed + ' materias colocadas, ' + (total - placed) + ' sin opción', 'warning');
+    }
+    persistSelection();
+  }
 
   // ── Alternar vista Clases / Exámenes ─────────────────────────
 
@@ -320,6 +401,108 @@
     }
     plannerRefresh();
   };
+
+  // ── Listener de almacenamiento para actualizaciones en vivo ──
+
+  chrome.storage.onChanged.addListener(function(changes, area) {
+    if (area === 'local' && changes[PB_STORAGE_KEY] && !PlannerState.isInternalChange) {
+      var newData = changes[PB_STORAGE_KEY].newValue;
+      var oldData = PlannerState.data;
+
+      // Actualizar datos
+      PlannerState.data = newData;
+      if (newData._selected && typeof newData._selected === 'object') {
+        PlannerState.selected = newData._selected;
+      } else {
+        PlannerState.selected = {};
+      }
+
+      // Limpiar selecciones huérfanas
+      var cleaned = false;
+      Object.keys(PlannerState.selected).forEach(function(m) {
+        if (!newData[m] || !newData[m].paralelos[PlannerState.selected[m]]) {
+          delete PlannerState.selected[m];
+          cleaned = true;
+        }
+      });
+
+      if (cleaned) {
+        // Persistir la limpieza
+        PlannerState.isInternalChange = true;
+        pbLoadData(function(data) {
+          data._selected = JSON.parse(JSON.stringify(PlannerState.selected));
+          pbSaveData(data, function() {
+            PlannerState.isInternalChange = false;
+          });
+        });
+      }
+
+      // Determinar tipo de cambio
+      var fullRefreshNeeded = false;
+      var detailUpdateNeeded = false;
+
+      // Cambios estructurales: diferente número de materias o paralelos
+      if (pbMatKeys(newData).length !== pbMatKeys(oldData).length) {
+        fullRefreshNeeded = true;
+      } else {
+        pbMatKeys(newData).forEach(function(m) {
+          if (!oldData[m] || pbParKeys(oldData[m]).length !== pbParKeys(newData[m]).length) {
+            fullRefreshNeeded = true;
+          }
+        });
+      }
+
+      // Si no es estructural, verificar cambios de orden o detalles
+      if (!fullRefreshNeeded) {
+        // Comparar orden de materias
+        if (JSON.stringify(newData._order) !== JSON.stringify(oldData._order)) {
+          fullRefreshNeeded = true;
+        } else {
+          // Comparar orden de paralelos y contenido de cada paralelo
+          pbMatKeys(newData).forEach(function(m) {
+            if (!fullRefreshNeeded && JSON.stringify(newData[m]._pOrder) !== JSON.stringify(oldData[m]._pOrder)) {
+              fullRefreshNeeded = true; // cambio de orden de paralelos requiere rebuild
+            }
+          });
+        }
+      }
+
+      // Si aún no es necesario reconstruir, verificar cambios en detalles de paralelos
+      if (!fullRefreshNeeded) {
+        pbMatKeys(newData).forEach(function(m) {
+          var newPar = newData[m].paralelos;
+          var oldPar = oldData[m] ? oldData[m].paralelos : {};
+          Object.keys(newPar).forEach(function(p) {
+            if (!fullRefreshNeeded && JSON.stringify(newPar[p]) !== JSON.stringify(oldPar[p])) {
+              detailUpdateNeeded = true; // solo actualizar los textos de los items
+            }
+          });
+        });
+      }
+
+      // Verificar cambios en créditos o collapsed
+      if (!fullRefreshNeeded && !detailUpdateNeeded) {
+        pbMatKeys(newData).forEach(function(m) {
+          if ((newData[m].creditos || '0') !== ((oldData[m] && oldData[m].creditos) || '0')) {
+            detailUpdateNeeded = true;
+          }
+          if ((newData[m].collapsed) !== ((oldData[m] && oldData[m].collapsed) || false)) {
+            detailUpdateNeeded = true;
+          }
+        });
+      }
+
+      if (fullRefreshNeeded) {
+        plannerFullRefresh();
+      } else if (detailUpdateNeeded) {
+        updateParaleloDetails();
+        plannerDrawBlocks();
+        plannerUpdateFooter();
+      } else {
+        plannerRefresh();
+      }
+    }
+  });
 
   // ── Arranque ─────────────────────────────────────────────────
   init();

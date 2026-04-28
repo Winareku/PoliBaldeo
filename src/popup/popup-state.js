@@ -30,6 +30,14 @@ function popupSaveVisualState() {
   PopupState.isInternalChange = true;
   var newData = { _order: [] };
 
+  // Preservar todas las claves que empiezan con "_" (excepto _order)
+  var preservedKeys = {};
+  Object.keys(PopupState.currentData).forEach(function(k) {
+    if (k.startsWith('_') && k !== '_order') {
+      preservedKeys[k] = PopupState.currentData[k];
+    }
+  });
+
   document.querySelectorAll('.materia-card').forEach(function(card) {
     var nombre    = card.dataset.materia;
     var cred      = card.querySelector('.creditos-value').textContent;
@@ -47,6 +55,11 @@ function popupSaveVisualState() {
         newData[nombre].paralelos[pNum] = existingData;
       }
     });
+  });
+
+  // Reincorporar las claves preservadas
+  Object.keys(preservedKeys).forEach(function(k) {
+    newData[k] = preservedKeys[k];
   });
 
   PopupState.currentData = newData;
