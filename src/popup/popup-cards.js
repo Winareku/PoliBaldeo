@@ -313,6 +313,9 @@ function popupUpdateCounter() {
 }
 
 function popupRender(data) {
+  // Protección contra datos indefinidos
+  if (!data) data = {};
+
   // Restaurar mapa de colores desde los metadatos (compartido con planner)
   if (data._colorMap && typeof data._colorMap === 'object') {
     // Copiar los colores guardados
