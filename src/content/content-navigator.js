@@ -1,27 +1,343 @@
-// ── Botón Polibaldeo ──────────────────────────────────────
+// ── Split Button Polibaldeo ────────────────────────────────
 function injectButton() {
   if (document.getElementById("polibaldeo-btn-wrap")) return;
 
   const nav = document.getElementById("polibaldeo-nav");
   let insertAfter = nav;
   if (!insertAfter) {
-    // fallback: insertar después del título "Materia Planificada"
     insertAfter = document.querySelector("#container h1:nth-of-type(2)");
     if (!insertAfter) return;
   }
 
+  // Contenedor principal
   const wrap = document.createElement("div");
   wrap.id = "polibaldeo-btn-wrap";
   wrap.style.cssText = "display: flex; justify-content: center; margin: 16px 0;";
 
-  const button = document.createElement("button");
-  button.id = "polibaldeo-add-btn";
-  button.type = "button";
-  button.textContent = "📌 Añadir a PoliBaldeo";
-  button.onclick = captureData;
+  // Contenedor relativo para el split button
+  const splitContainer = document.createElement("div");
+  splitContainer.className = "polibaldeo-split-container";
 
-  wrap.appendChild(button);
+  // Botón principal
+  const mainBtn = document.createElement("button");
+  mainBtn.id = "polibaldeo-add-btn";
+  mainBtn.type = "button";
+  mainBtn.className = "polibaldeo-btn-main";
+  mainBtn.onclick = function(e) {
+    e.stopPropagation();
+    // Cerrar dropdown si está abierto
+    closeDropdown();
+    captureData();
+  };
+
+  // Botón flecha
+  const arrowBtn = document.createElement("button");
+  arrowBtn.id = "polibaldeo-arrow-btn";
+  arrowBtn.type = "button";
+  arrowBtn.className = "polibaldeo-btn-arrow";
+  arrowBtn.innerHTML = '<span class="polibaldeo-arrow-icon">▾</span>';
+  arrowBtn.title = "Más opciones";
+  arrowBtn.onclick = function(e) {
+    e.stopPropagation();
+    toggleDropdown();
+  };
+
+  // Dropdown
+  const dropdown = document.createElement("div");
+  dropdown.id = "polibaldeo-dropdown";
+  dropdown.className = "polibaldeo-dropdown";
+
+  // Opción del dropdown
+  const addAllOption = document.createElement("button");
+  addAllOption.className = "polibaldeo-dropdown-item";
+  addAllOption.textContent = "Añadir todas las combinaciones";
+  addAllOption.onclick = function(e) {
+    e.stopPropagation();
+    closeDropdown();
+    addAllPracticos();
+  };
+
+  dropdown.appendChild(addAllOption);
+  splitContainer.appendChild(mainBtn);
+  splitContainer.appendChild(arrowBtn);
+  splitContainer.appendChild(dropdown);
+  wrap.appendChild(splitContainer);
   insertAfter.insertAdjacentElement("afterend", wrap);
+
+  // Cerrar dropdown al hacer clic fuera
+  document.addEventListener('click', function(e) {
+    if (!splitContainer.contains(e.target)) {
+      closeDropdown();
+    }
+  });
+
+  function toggleDropdown() {
+    const isOpen = dropdown.classList.contains('polibaldeo-dropdown-open');
+    if (isOpen) {
+      closeDropdown();
+    } else {
+      openDropdown();
+    }
+  }
+
+  function openDropdown() {
+    const practicoTabs = document.querySelectorAll('a.mostrar');
+    const count = practicoTabs.length || 1; // Si no hay prácticos, al menos se añade el teórico solo
+    addAllOption.textContent = `Añadir todo (${count})`;
+    dropdown.classList.add('polibaldeo-dropdown-open');
+  }
+
+  function closeDropdown() {
+    dropdown.classList.remove('polibaldeo-dropdown-open');
+  }
+
+  updateButtonState();
+  document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('mostrar')) {
+      setTimeout(updateButtonState, 100);
+    }
+  });
+}
+
+// Funciones auxiliares (colócalas antes de addAllPracticos)
+// ========== FUNCIONES AUXILIARES ==========
+
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function extractHorariosTeoricos() {
+  const horarios = [];
+  const rows = document.querySelectorAll("#ctl00_contenido_TableHorarios tbody tr");
+  rows.forEach(row => {
+    const cols = row.querySelectorAll("td");
+    if (cols.length >= 3) {
+      horarios.push(`${cols[0].textContent.trim()} ${cols[1].textContent.trim()}-${cols[2].textContent.trim()}`);
+    }
+  });
+  return horarios;
+}
+
+function extractUbicacionTeorico() {
+  let ubicacion = "";
+  const rows = document.querySelectorAll("#ctl00_contenido_TableHorarios tbody tr");
+  rows.forEach(row => {
+    const cols = row.querySelectorAll("td");
+    if (!ubicacion && cols.length >= 5) {
+      ubicacion = `${cols[3].textContent.trim()} ${cols[4].textContent.trim()}`.trim();
+    }
+  });
+  return ubicacion;
+}
+
+function extractExamenes() {
+  const examenes = {};
+  const parcialText = document.querySelector("#ctl00_contenido_LabelParcial")?.textContent.trim();
+  const finalText   = document.querySelector("#ctl00_contenido_LabelFinal")?.textContent.trim();
+  const mejoraText  = document.querySelector("#ctl00_contenido_LabelMejora")?.textContent.trim();
+  const aulaParcial = document.querySelector("#ctl00_contenido_aulaParcial")?.textContent.trim() || '';
+  const aulaFinal   = document.querySelector("#ctl00_contenido_aulaFinal")?.textContent.trim() || '';
+  const aulaMejora  = document.querySelector("#ctl00_contenido_aulaMej")?.textContent.trim() || '';
+
+  if (window.parseExamInfo) {
+    const parcialInfo = parseExamInfo(parcialText, aulaParcial);
+    if (parcialInfo) examenes.parcial = parcialInfo;
+    const finalInfo = parseExamInfo(finalText, aulaFinal);
+    if (finalInfo) examenes.final = finalInfo;
+    const mejoraInfo = parseExamInfo(mejoraText, aulaMejora);
+    if (mejoraInfo) examenes.mejoramiento = mejoraInfo;
+  }
+  return examenes;
+}
+
+function extractPracticoDataFromContainer(container) {
+  let profesor = "";
+  const profCell = Array.from(container.querySelectorAll("td")).find(td => td.textContent.includes("Profesor:"));
+  if (profCell) {
+    profesor = profCell.textContent.replace("Profesor:", "").replace(/\u00a0/g, " ").trim();
+  }
+
+  const horarios = [];
+  let ubicacion = "";
+  const tablas = container.querySelectorAll("table.display");
+  tablas.forEach(tabla => {
+    const rows = tabla.querySelectorAll("tbody tr");
+    rows.forEach(row => {
+      const cols = row.querySelectorAll("td");
+      if (cols.length >= 3) {
+        const dia = cols[0].textContent.trim();
+        const inicio = cols[1].textContent.trim();
+        const fin = cols[2].textContent.trim();
+        horarios.push(`${dia} ${inicio}-${fin}`);
+        if (!ubicacion && cols.length >= 5) {
+          ubicacion = `${cols[3].textContent.trim()} ${cols[4].textContent.trim()}`.trim();
+        }
+      }
+    });
+  });
+  return { profesor, horarios, ubicacion };
+}
+
+// ========== FUNCIÓN PRINCIPAL ==========
+async function addAllPracticos() {
+  const mainBtn = document.getElementById("polibaldeo-add-btn");
+  const arrowBtn = document.getElementById("polibaldeo-arrow-btn");
+  if (mainBtn) mainBtn.disabled = true;
+  if (arrowBtn) arrowBtn.disabled = true;
+
+  // Pequeño retardo para asegurar que el deshabilitado se aplique
+  setTimeout(() => {
+    try {
+      const materia = document.querySelector("#ctl00_contenido_LabelNombreMateria")?.textContent.trim();
+      const teorico = document.querySelector("#ctl00_contenido_LabelParalelo")?.textContent.trim();
+      if (!materia || !teorico) {
+        showToast("⚠️ No se pudo identificar la materia o paralelo teórico", "error");
+        enableButtons();
+        return;
+      }
+
+      const practicoTabs = document.querySelectorAll('a.mostrar');
+      const total = practicoTabs.length;
+      
+      if (total === 0) {
+        const data = _extractData();
+        if (data) saveData(data);
+        enableButtons();
+        return;
+      }
+
+      // Recolectar datos de todos los prácticos (sin guardar aún)
+      const entries = [];
+      for (let i = 0; i < total; i++) {
+        const tab = practicoTabs[i];
+        const numPractico = tab.textContent.trim();
+        const containerId = `tabla_${tab.id}`;
+        const container = document.getElementById(containerId);
+        if (!container) continue;
+
+        const practicoData = extractPracticoDataFromContainer(container);
+        if (!practicoData) continue;
+
+        entries.push({
+          paraleloId: `${teorico}-${numPractico}`,
+          horariosPracticos: practicoData.horarios,
+          ubicacionPractico: practicoData.ubicacion,
+          profesorPractico: practicoData.profesor
+        });
+      }
+
+      if (entries.length === 0) {
+        showToast("⚠️ No se encontraron datos de prácticos", "warning");
+        enableButtons();
+        return;
+      }
+
+      // Datos comunes de la materia (teórico) - se extraen una sola vez
+      const horariosTeoricos = extractHorariosTeoricos();
+      const ubicacionTeorico = extractUbicacionTeorico();
+      const profesorPrincipal = document.querySelector("#ctl00_contenido_LabelProfesor")?.textContent.trim() || "No asignado";
+      const examenes = extractExamenes();
+
+      // Guardar todo en una sola operación
+      chrome.storage.local.get("polibaldeo_data", function(res) {
+        const data = res.polibaldeo_data || { _order: [] };
+        
+        if (!data[materia]) {
+          data[materia] = {
+            creditos: "0",
+            paralelos: {},
+            _pOrder: [],
+            collapsed: false
+          };
+          if (!data._order.includes(materia)) data._order.push(materia);
+        }
+
+        entries.forEach(entry => {
+          data[materia].paralelos[entry.paraleloId] = {
+            horariosTeoricos: horariosTeoricos,
+            horariosPracticos: entry.horariosPracticos,
+            ubicacionTeorico: ubicacionTeorico,
+            ubicacionPractico: entry.ubicacionPractico,
+            profesor: profesorPrincipal,
+            profesorPractico: entry.profesorPractico || "",
+            examenes: examenes
+          };
+          if (!data[materia]._pOrder.includes(entry.paraleloId)) {
+            data[materia]._pOrder.push(entry.paraleloId);
+          }
+        });
+
+        chrome.storage.local.set({ polibaldeo_data: data }, function() {
+          showToast(`✅ ${entries.length} combinaciones guardadas`, "success");
+          enableButtons();
+          updateButtonState();
+        });
+      });
+    } catch (err) {
+      console.error("Error en addAllPracticos:", err);
+      showToast("❌ Ocurrió un error", "error");
+      enableButtons();
+    }
+  }, 50);
+
+  function enableButtons() {
+    if (mainBtn) mainBtn.disabled = false;
+    if (arrowBtn) arrowBtn.disabled = false;
+  }
+}
+
+
+/**
+ * Actualiza el texto, color y habilitación del botón según el estado actual.
+ */
+function updateButtonState() {
+  var btn = document.getElementById("polibaldeo-add-btn");
+  if (!btn) return;
+
+  var materia = document.querySelector("#ctl00_contenido_LabelNombreMateria")?.textContent.trim();
+  if (!materia) {
+    btn.disabled = true;
+    btn.textContent = '📌 Añadir a PoliBaldeo';
+    btn.classList.remove('polibaldeo-btn-update');
+    btn.classList.add('polibaldeo-btn-main');
+    return;
+  }
+
+  var teorico = document.querySelector("#ctl00_contenido_LabelParalelo")?.textContent.trim() || '';
+  var practicos = document.querySelectorAll('a.mostrar');
+  var activeTab = document.querySelector('a.mostrar.active');
+
+  // Caso 1: sin prácticos o con varios pero ninguno activo → botón solo para añadir (estilo neutro)
+  if (practicos.length === 0 || (!activeTab && practicos.length > 1)) {
+    btn.disabled = false;
+    btn.textContent = '📌 Añadir a PoliBaldeo';
+    btn.classList.remove('polibaldeo-btn-update');
+    btn.classList.add('polibaldeo-btn-main');
+    return;
+  }
+
+  // Caso 2: hay un práctico activo o un único práctico sin activar
+  var idCombinado = teorico;
+  if (activeTab) {
+    var numPractico = activeTab.textContent.trim().replace("Práctico ", "");
+    idCombinado = teorico + '-' + numPractico;
+  } else if (practicos.length === 1 && !activeTab) {
+    var unicoPractico = practicos[0].textContent.trim().replace("Práctico ", "");
+    idCombinado = teorico + '-' + unicoPractico;
+  }
+
+  checkParaleloExists(materia, idCombinado, function(exists) {
+    btn.disabled = false;
+    if (exists) {
+      btn.textContent = '✅ Actualizar en PoliBaldeo';
+      btn.classList.remove('polibaldeo-btn-main');
+      btn.classList.add('polibaldeo-btn-update');
+    } else {
+      btn.textContent = '📌 Añadir a PoliBaldeo';
+      btn.classList.remove('polibaldeo-btn-update');
+      btn.classList.add('polibaldeo-btn-main');
+    }
+  });
 }
 
 // ── Navegador de paralelos Material 3 ─────────────────────

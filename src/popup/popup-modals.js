@@ -33,6 +33,31 @@ function pbBuildInfo(prof, ubic) {
   return parts.join('\n');
 }
 
+function pbSectionHeader(title, sectionId, defaultOpen, extraHTML, onOpen) {
+  var hdr = document.createElement('div');
+  hdr.className = 'pb-section-collapse-hdr';
+  hdr.innerHTML = `
+    <span class="sym pb-section-chevron">${defaultOpen ? 'expand_less' : 'expand_more'}</span>
+    <span class="pb-section-title">${title}</span>
+    <span class="pb-header-extra">${extraHTML || ''}</span>
+  `;
+  hdr.onclick = function(e) {
+    if (e.target.tagName === 'INPUT') return; // no colapsar al hacer clic en el input
+    var body = document.getElementById(sectionId);
+    if (!body) return;
+    var isCollapsed = body.classList.contains('collapsed');
+    if (isCollapsed) {
+      // Abrir esta sección y cerrar las demás mediante el callback
+      if (typeof onOpen === 'function') onOpen(sectionId);
+    } else {
+      // Cerrar esta sección
+      body.classList.add('collapsed');
+      hdr.querySelector('.pb-section-chevron').textContent = 'expand_more';
+    }
+  };
+  return hdr;
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  Diálogo de confirmación (con PBModal)
 // ═══════════════════════════════════════════════════════════════
@@ -163,29 +188,46 @@ function popupOpenEditModal(materia, pId, isNew) {
                PopupState.currentData[materia].paralelos[pId]) || {};
   }
 
-  var parNum = isNew ? _pbNextParId(materia) : (pId || '');
-
-  // Obtener profesor y ubicación (separados o del campo info antiguo)
-  var prof = parData.profesor || '';
-  var ubic = parData.ubicacion || '';
-  if (!prof && !ubic) {
-    // Fallback: parsear del info antiguo si es necesario
-    var parsed = pbParseInfo(parData.info || '');
-    prof = parsed.prof;
-    ubic = parsed.ubic;
+  // Migrar campos antiguos si es necesario
+  if (!parData.horariosTeoricos && !parData.horariosPracticos) {
+    parData.horariosTeoricos = parData.horarios || [];
+    parData.horariosPracticos = [];
+  }
+  if (!parData.ubicacionTeorico && !parData.ubicacionPractico) {
+    parData.ubicacionTeorico = parData.ubicacion || "";
+    parData.ubicacionPractico = "";
   }
 
-  // Obtener exámenes existentes
-  var examData = parData.examenes || {};
-  var parcial = examData.parcial || { fecha: '', inicio: '', fin: '' };
-  var final   = examData.final   || { fecha: '', inicio: '', fin: '' };
-  var mejora  = examData.mejoramiento || { fecha: '', inicio: '', fin: '' };
+  // Extraer o generar números de paralelo por separado
+  var teoPar = '', pracPar = '';
+  if (isNew) {
+    teoPar = _pbNextParId(materia);  // genera un número nuevo para teórico
+    pracPar = '';                     // sin práctico por defecto
+  } else {
+    var parts = (pId || '').split('-');
+    teoPar = parts[0] || '';
+    pracPar = parts[1] || '';
+  }
 
-  var horariosRows = '';
-  (parData.horarios || []).forEach(function(h) {
+  // ── Construir sección Teórico ─────────────────────────────
+  var teoricoProf = parData.profesor || '';
+  var teoricoUbic = parData.ubicacionTeorico || '';
+  // Si no hay datos separados, usar el campo general
+  if (!teoricoProf && !teoricoUbic && parData.info) {
+    var parsedTeo = pbParseInfo(parData.info);
+    teoricoProf = parsedTeo.prof;
+    teoricoUbic = parsedTeo.ubic;
+  }
+
+  var practicoProf = parData.profesorPractico || '';
+  var practicoUbic = parData.ubicacionPractico || '';
+  // El práctico no tiene profesor separado en datos antiguos; solo se muestra si hay horarios prácticos
+
+  var horariosTeoRows = '';
+  (parData.horariosTeoricos || parData.horarios || []).forEach(function(h) {
     var p = pbParseHorarioStr(h);
     if (p) {
-      horariosRows += `
+      horariosTeoRows += `
         <div class="pb-h-row">
           <select class="pb-day-sel">
             ${Object.keys(PB_DAY_MAP).map(function(d) {
@@ -201,55 +243,100 @@ function popupOpenEditModal(materia, pId, isNew) {
     }
   });
 
-  var bodyHTML = `
-    <div class="pb-field-row">
-      <span class="pb-field-label">Paralelo</span>
-      <input id="pb-par-num" type="text" class="pb-text-input" value="${parNum}" style="max-width:70px;">
-    </div>
-    <div class="pb-field-row">
-      <span class="pb-field-label">Profesor</span>
-      <input id="pb-prof-input" type="text" class="pb-text-input" placeholder="Nombre del profesor" value="${prof.replace(/"/g, '&quot;')}">
-    </div>
-    <div class="pb-field-row">
-      <span class="pb-field-label">Ubicación</span>
-      <input id="pb-ubic-input" type="text" class="pb-text-input" placeholder="Aula o edificio" value="${ubic.replace(/"/g, '&quot;')}">
-    </div>
-    <div class="pb-section-hdr">
-      <span>Horarios</span>
-      <button class="pb-add-btn" id="pb-add-horario" type="button" title="Añadir horario">
-        <span class="sym" style="font-size:16px">add</span>
-      </button>
-    </div>
-    <div id="pb-horarios-container">${horariosRows}</div>
+  var horariosPracRows = '';
+  (parData.horariosPracticos || []).forEach(function(h) {
+    var p = pbParseHorarioStr(h);
+    if (p) {
+      horariosPracRows += `
+        <div class="pb-h-row">
+          <select class="pb-day-sel">
+            ${Object.keys(PB_DAY_MAP).map(function(d) {
+              return '<option value="' + d + '"' + (d === p.day ? ' selected' : '') + '>' + d + '</option>';
+            }).join('')}
+          </select>
+          <input type="text" class="pb-time-input pb-start" placeholder="HH:MM" maxlength="5" value="${p.start}">
+          <span class="pb-h-sep">–</span>
+          <input type="text" class="pb-time-input pb-end" placeholder="HH:MM" maxlength="5" value="${p.end}">
+          <button class="pb-h-del" type="button" title="Eliminar horario"><span class="sym">delete</span></button>
+        </div>
+      `;
+    }
+  });
 
-    <!-- Sección Exámenes -->
-    <div class="pb-section-hdr" style="margin-top:12px;">
-      <span>Exámenes</span>
+  var examRows = '';
+  var examData = parData.examenes || {};
+  var labels = { parcial: 'Parcial', final: 'Final', mejoramiento: 'Mejoramiento' };
+  Object.keys(labels).forEach(function(key) {
+    var ex = examData[key] || {};
+    var aulas = ex.aula || '';
+    examRows += `
+      <div class="pb-section-hdr" style="margin-top:4px;">
+        <span>${labels[key]}</span>
+      </div>
+      <div class="pb-h-row" style="flex-wrap: wrap;">
+        <input type="text" class="pb-text-input exam-fecha" id="exam-${key}-fecha" placeholder="YYYY-MM-DD" value="${ex.fecha || ''}" style="max-width:130px;" pattern="\\d{4}-\\d{2}-\\d{2}">
+        <input type="text" class="pb-time-input" id="exam-${key}-inicio" placeholder="HH:MM" maxlength="5" value="${ex.inicio || ''}" style="width:65px;">
+        <span class="pb-h-sep">–</span>
+        <input type="text" class="pb-time-input" id="exam-${key}-fin" placeholder="HH:MM" maxlength="5" value="${ex.fin || ''}" style="width:65px;">
+        <div style="width:100%; margin-top:4px;">
+          <input type="text" class="pb-text-input" id="exam-${key}-aula" placeholder="Aula" value="${aulas}" style="max-width:100%;">
+        </div>
+      </div>
+    `;
+  });
+
+  var bodyHTML = `
+    <!-- Sección Teórico (colapsable, abierta por defecto) -->
+    <div class="pb-section-container">
+      <div id="pb-sect-teorico-hdr"></div>
+      <div id="pb-sect-teorico" class="pb-section-body">
+        <div class="pb-field-row">
+          <span class="pb-field-label">Profesor</span>
+          <input id="pb-prof-teo" type="text" class="pb-text-input" placeholder="Profesor teórico" value="${teoricoProf.replace(/"/g, '&quot;')}">
+        </div>
+        <div class="pb-field-row">
+          <span class="pb-field-label">Ubicación</span>
+          <input id="pb-ubic-teo" type="text" class="pb-text-input" placeholder="Aula teórica" value="${teoricoUbic.replace(/"/g, '&quot;')}">
+        </div>
+        <div class="pb-section-hdr">
+          <span>Horarios</span>
+          <button class="pb-add-btn" id="pb-add-horario-teo" type="button" title="Añadir horario teórico">
+            <span class="sym" style="font-size:16px">add</span>
+          </button>
+        </div>
+        <div id="pb-horarios-teo-container" class="pb-horarios-scroll">${horariosTeoRows}</div>
+      </div>
     </div>
-    <div id="pb-examenes-container" style="display:flex; flex-direction:column; gap:8px;">
-      <!-- Parcial -->
-      <div class="pb-h-row">
-        <input type="text" class="pb-text-input exam-fecha" id="exam-parcial-fecha" placeholder="YYYY-MM-DD" value="${parcial.fecha}" style="max-width:130px;" pattern="\\d{4}-\\d{2}-\\d{2}">
-        <input type="text" class="pb-time-input" id="exam-parcial-inicio" placeholder="HH:MM" maxlength="5" value="${parcial.inicio}" style="width:65px;">
-        <span class="pb-h-sep">–</span>
-        <input type="text" class="pb-time-input" id="exam-parcial-fin" placeholder="HH:MM" maxlength="5" value="${parcial.fin}" style="width:65px;">
-        <input type="text" class="pb-text-input" id="exam-parcial-aula" placeholder="Aula" value="${parcial.aula || ''}" style="max-width:130px;">
+
+    <!-- Sección Práctico (colapsable, cerrada por defecto) -->
+    <div class="pb-section-container">
+      <div id="pb-sect-practico-hdr"></div>
+      <div id="pb-sect-practico" class="pb-section-body collapsed">
+        <div class="pb-field-row">
+          <span class="pb-field-label">Profesor</span>
+          <input id="pb-prof-prac" type="text" class="pb-text-input" placeholder="Profesor práctico" value="${practicoProf.replace(/"/g, '&quot;')}">
+        </div>
+        <div class="pb-field-row">
+          <span class="pb-field-label">Ubicación</span>
+          <input id="pb-ubic-prac" type="text" class="pb-text-input" placeholder="Aula práctica" value="${practicoUbic.replace(/"/g, '&quot;')}">
+        </div>
+        <div class="pb-section-hdr">
+          <span>Horarios</span>
+          <button class="pb-add-btn" id="pb-add-horario-prac" type="button" title="Añadir horario práctico">
+            <span class="sym" style="font-size:16px">add</span>
+          </button>
+        </div>
+        <div id="pb-horarios-prac-container" class="pb-horarios-scroll">${horariosPracRows}</div>
       </div>
-      <!-- Final -->
-      <div class="pb-h-row">
-        <input type="text" class="pb-text-input exam-fecha" id="exam-final-fecha" placeholder="YYYY-MM-DD" value="${final.fecha}" style="max-width:130px;" pattern="\\d{4}-\\d{2}-\\d{2}">
-        <input type="text" class="pb-time-input" id="exam-final-inicio" placeholder="HH:MM" maxlength="5" value="${final.inicio}" style="width:65px;">
-        <span class="pb-h-sep">–</span>
-        <input type="text" class="pb-time-input" id="exam-final-fin" placeholder="HH:MM" maxlength="5" value="${final.fin}" style="width:65px;">
-        <input type="text" class="pb-text-input" id="exam-final-aula" placeholder="Aula" value="${final.aula || ''}" style="max-width:130px;">
-      </div>
-      <!-- Mejoramiento -->
-      <div class="pb-h-row">
-        <input type="text" class="pb-text-input exam-fecha" id="exam-mejora-fecha" placeholder="YYYY-MM-DD" value="${mejora.fecha}" style="max-width:130px;" pattern="\\d{4}-\\d{2}-\\d{2}">
-        <input type="text" class="pb-time-input" id="exam-mejora-inicio" placeholder="HH:MM" maxlength="5" value="${mejora.inicio}" style="width:65px;">
-        <span class="pb-h-sep">–</span>
-        <input type="text" class="pb-time-input" id="exam-mejora-fin" placeholder="HH:MM" maxlength="5" value="${mejora.fin}" style="width:65px;">
-        <input type="text" class="pb-text-input" id="exam-mejora-aula" placeholder="Aula" value="${mejora.aula || ''}" style="max-width:130px;">
+    </div>
+
+    <!-- Sección Exámenes (colapsable, cerrada por defecto) -->
+    <div class="pb-section-container">
+      <div id="pb-sect-examenes-hdr"></div>
+      <div id="pb-sect-examenes" class="pb-section-body collapsed">
+        <div id="pb-examenes-container" class="pb-horarios-scroll" style="display:flex; flex-direction:column; gap:8px;">
+          ${examRows}
+        </div>
       </div>
     </div>
   `;
@@ -272,55 +359,139 @@ function popupOpenEditModal(materia, pId, isNew) {
   }
   var modalBody = modal.root.querySelector('.modal-body');
   if (modalBody) {
-    modalBody.style.maxHeight = '520px';
+    modalBody.style.maxHeight = '620px';
   }
 
-  var parInput = modal.getElement('#pb-par-num');
-  var profInput = modal.getElement('#pb-prof-input');
-  var ubicInput = modal.getElement('#pb-ubic-input');
-  var container = modal.getElement('#pb-horarios-container');
+  // Inicializar encabezados colapsables con campos de paralelo
+  var teoricoHdr = document.getElementById('pb-sect-teorico-hdr');
+  var practicoHdr = document.getElementById('pb-sect-practico-hdr');
+  var examHdr = document.getElementById('pb-sect-examenes-hdr');
 
-  modal.getElement('#pb-add-horario').onclick = function() {
-    var row = document.createElement('div');
-    row.className = 'pb-h-row';
-    row.innerHTML = `
-      <select class="pb-day-sel">
-        ${Object.keys(PB_DAY_MAP).map(function(d) { return '<option>' + d + '</option>'; }).join('')}
-      </select>
-      <input type="text" class="pb-time-input pb-start" placeholder="HH:MM" maxlength="5">
-      <span class="pb-h-sep">–</span>
-      <input type="text" class="pb-time-input pb-end" placeholder="HH:MM" maxlength="5">
-      <button class="pb-h-del" type="button" title="Eliminar horario"><span class="sym">delete</span></button>
-    `;
-    row.querySelector('.pb-h-del').onclick = function() { row.remove(); };
-    container.appendChild(row);
-  };
+  // Callback para acordeón: abre una sección y cierra todas las demás
+  function soloUnaAbierta(sectionIdToOpen) {
+    var bodies = {
+      'pb-sect-teorico': document.getElementById('pb-sect-teorico'),
+      'pb-sect-practico': document.getElementById('pb-sect-practico'),
+      'pb-sect-examenes': document.getElementById('pb-sect-examenes')
+    };
+    var hdrs = {
+      'pb-sect-teorico': document.getElementById('pb-sect-teorico-hdr'),
+      'pb-sect-practico': document.getElementById('pb-sect-practico-hdr'),
+      'pb-sect-examenes': document.getElementById('pb-sect-examenes-hdr')
+    };
 
-  container.addEventListener('click', function(e) {
+    Object.keys(bodies).forEach(function(id) {
+      if (id === sectionIdToOpen) {
+        bodies[id].classList.remove('collapsed');
+        if (hdrs[id]) {
+          var chevron = hdrs[id].querySelector('.pb-section-chevron');
+          if (chevron) chevron.textContent = 'expand_less';
+        }
+      } else {
+        bodies[id].classList.add('collapsed');
+        if (hdrs[id]) {
+          var chevron = hdrs[id].querySelector('.pb-section-chevron');
+          if (chevron) chevron.textContent = 'expand_more';
+        }
+      }
+    });
+  }
+
+  if (teoricoHdr) teoricoHdr.parentNode.replaceChild(
+    pbSectionHeader('Teórico', 'pb-sect-teorico', true,
+      '<input id="pb-par-teo" type="text" class="pb-text-input" value="' + teoPar + '" style="max-width:70px;">',
+      soloUnaAbierta
+    ), teoricoHdr);
+  if (practicoHdr) practicoHdr.parentNode.replaceChild(
+    pbSectionHeader('Práctico', 'pb-sect-practico', false,
+      '<input id="pb-par-prac" type="text" class="pb-text-input" value="' + pracPar + '" style="max-width:70px;">',
+      soloUnaAbierta
+    ), practicoHdr);
+  if (examHdr) examHdr.parentNode.replaceChild(
+    pbSectionHeader('Exámenes', 'pb-sect-examenes', false, '', soloUnaAbierta), examHdr);
+
+  // Referencias a contenedores
+  var containerTeo = modal.getElement('#pb-horarios-teo-container');
+  var containerPrac = modal.getElement('#pb-horarios-prac-container');
+
+  // Botón añadir horario teórico
+  var addHorarioTeoBtn = modal.getElement('#pb-add-horario-teo');
+  if (addHorarioTeoBtn) {
+    addHorarioTeoBtn.onclick = function() {
+      var row = document.createElement('div');
+      row.className = 'pb-h-row';
+      row.innerHTML = `
+        <select class="pb-day-sel">
+          ${Object.keys(PB_DAY_MAP).map(function(d) { return '<option>' + d + '</option>'; }).join('')}
+        </select>
+        <input type="text" class="pb-time-input pb-start" placeholder="HH:MM" maxlength="5">
+        <span class="pb-h-sep">–</span>
+        <input type="text" class="pb-time-input pb-end" placeholder="HH:MM" maxlength="5">
+        <button class="pb-h-del" type="button" title="Eliminar horario"><span class="sym">delete</span></button>
+      `;
+      row.querySelector('.pb-h-del').onclick = function() { row.remove(); };
+      containerTeo.appendChild(row);
+    };
+  }
+
+  // Botón añadir horario práctico
+  var addHorarioPracBtn = modal.getElement('#pb-add-horario-prac');
+  if (addHorarioPracBtn) {
+    addHorarioPracBtn.onclick = function() {
+      var row = document.createElement('div');
+      row.className = 'pb-h-row';
+      row.innerHTML = `
+        <select class="pb-day-sel">
+          ${Object.keys(PB_DAY_MAP).map(function(d) { return '<option>' + d + '</option>'; }).join('')}
+        </select>
+        <input type="text" class="pb-time-input pb-start" placeholder="HH:MM" maxlength="5">
+        <span class="pb-h-sep">–</span>
+        <input type="text" class="pb-time-input pb-end" placeholder="HH:MM" maxlength="5">
+        <button class="pb-h-del" type="button" title="Eliminar horario"><span class="sym">delete</span></button>
+      `;
+      row.querySelector('.pb-h-del').onclick = function() { row.remove(); };
+      containerPrac.appendChild(row);
+    };
+  }
+
+  // Delegación de eventos para eliminar horarios
+  var eliminarHorario = function(e) {
     var delBtn = e.target.closest('.pb-h-del');
-    if (delBtn) {
-      delBtn.closest('.pb-h-row').remove();
-    }
-  });
+    if (delBtn) delBtn.closest('.pb-h-row').remove();
+  };
+  if (containerTeo) containerTeo.addEventListener('click', eliminarHorario);
+  if (containerPrac) containerPrac.addEventListener('click', eliminarHorario);
+
+  // Referencias para guardado
+  var profTeoInput = modal.getElement('#pb-prof-teo');
+  var ubicTeoInput = modal.getElement('#pb-ubic-teo');
+  var profPracInput = modal.getElement('#pb-prof-prac');
+  var ubicPracInput = modal.getElement('#pb-ubic-prac');
 
   modal.getElement('#modal-save').onclick = function() {
-    var newPId = parInput.value.trim();
+    var teoPar = modal.getElement('#pb-par-teo')?.value.trim() || '';
+    var pracPar = modal.getElement('#pb-par-prac')?.value.trim() || '';
+    var newPId = teoPar;
+    if (pracPar) newPId += '-' + pracPar;
     if (!newPId) {
       popupSetStatus('⚠️ El paralelo no puede estar vacío', 'warning');
       return;
     }
 
-    var prof = profInput.value.replace(/\n/g, ' ').trim();
-    var ubic = ubicInput.value.replace(/\n/g, ' ').trim();
+    var profTeo = profTeoInput ? profTeoInput.value.replace(/\n/g, ' ').trim() : '';
+    var ubicTeo = ubicTeoInput ? ubicTeoInput.value.replace(/\n/g, ' ').trim() : '';
+    var profPrac = profPracInput ? profPracInput.value.replace(/\n/g, ' ').trim() : '';
+    var ubicPrac = ubicPracInput ? ubicPracInput.value.replace(/\n/g, ' ').trim() : '';
 
-    var horarios = [];
-    var rows = container.querySelectorAll('.pb-h-row');
+    // Leer horarios teóricos
+    var horariosTeoricos = [];
     var daySchedules = {};
+    var rowsTeo = containerTeo ? containerTeo.querySelectorAll('.pb-h-row') : [];
 
-    for (var i = 0; i < rows.length; i++) {
-      var day = rows[i].querySelector('.pb-day-sel').value;
-      var start = rows[i].querySelector('.pb-start').value.trim();
-      var end = rows[i].querySelector('.pb-end').value.trim();
+    for (var i = 0; i < rowsTeo.length; i++) {
+      var day = rowsTeo[i].querySelector('.pb-day-sel').value;
+      var start = rowsTeo[i].querySelector('.pb-start').value.trim();
+      var end = rowsTeo[i].querySelector('.pb-end').value.trim();
       if (!day || !start || !end) continue;
 
       if (!/^\d{1,2}:\d{2}$/.test(start) || !/^\d{1,2}:\d{2}$/.test(end)) {
@@ -350,7 +521,39 @@ function popupOpenEditModal(materia, pId, isNew) {
         }
       }
       daySchedules[day].push({s: sMins, e: eMins});
-      horarios.push(day + ' ' + start + '-' + end);
+      horariosTeoricos.push(day + ' ' + start + '-' + end);
+    }
+
+    // Leer horarios prácticos (si existen)
+    var horariosPracticos = [];
+    if (containerPrac) {
+      var rowsPrac = containerPrac.querySelectorAll('.pb-h-row');
+      for (var k = 0; k < rowsPrac.length; k++) {
+        var day = rowsPrac[k].querySelector('.pb-day-sel').value;
+        var start = rowsPrac[k].querySelector('.pb-start').value.trim();
+        var end = rowsPrac[k].querySelector('.pb-end').value.trim();
+        if (!day || !start || !end) continue;
+
+        if (!/^\d{1,2}:\d{2}$/.test(start) || !/^\d{1,2}:\d{2}$/.test(end)) {
+          popupSetStatus('⚠️ Formato de hora inválido en ' + day + ' (usa HH:MM)', 'warning');
+          return;
+        }
+
+        start = start.padStart(5, '0');
+        end = end.padStart(5, '0');
+
+        var sPartsP = start.split(':');
+        var ePartsP = end.split(':');
+        var sMinsP = parseInt(sPartsP[0], 10) * 60 + parseInt(sPartsP[1], 10);
+        var eMinsP = parseInt(ePartsP[0], 10) * 60 + parseInt(ePartsP[1], 10);
+
+        if (eMinsP <= sMinsP) {
+          popupSetStatus('⚠️ En el ' + day + ' (práctico), la hora de fin debe ser mayor a la de inicio', 'warning');
+          return;
+        }
+
+        horariosPracticos.push(day + ' ' + start + '-' + end);
+      }
     }
 
     // Leer exámenes
@@ -373,9 +576,12 @@ function popupOpenEditModal(materia, pId, isNew) {
     if (m) examenesNuevos.mejoramiento = m;
 
     var parDataNew = {
-      horarios: horarios,
-      profesor: prof,
-      ubicacion: ubic,
+      horariosTeoricos: horariosTeoricos,
+      horariosPracticos: horariosPracticos,
+      profesor: profTeo,
+      profesorPractico: profPrac,
+      ubicacionTeorico: ubicTeo,
+      ubicacionPractico: ubicPrac,
       examenes: examenesNuevos
     };
     var mat = PopupState.currentData[materia];
@@ -415,8 +621,6 @@ function popupOpenEditModal(materia, pId, isNew) {
   modal.getElement('#modal-cancel').onclick = function() {
     modal.destroy();
   };
-
-  parInput.focus();
 }
 
 // ═══════════════════════════════════════════════════════════════

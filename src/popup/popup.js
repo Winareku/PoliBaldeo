@@ -70,7 +70,27 @@
             if (typeof mat.collapsed !== 'boolean') mat.collapsed = false;
             // Asegurar que cada paralelo tenga la nueva propiedad examenes
             Object.keys(mat.paralelos).forEach(function(pId) {
-              if (!mat.paralelos[pId].examenes) mat.paralelos[pId].examenes = {};
+              var par = mat.paralelos[pId];
+              if (!par.examenes) par.examenes = {};
+              // Migrar campos antiguos si es necesario
+              if (!par.horariosTeoricos && !par.horariosPracticos) {
+                par.horariosTeoricos = par.horarios || [];
+                par.horariosPracticos = [];
+                delete par.horarios;
+              }
+              if (!par.ubicacionTeorico && !par.ubicacionPractico) {
+                par.ubicacionTeorico = par.ubicacion || "";
+                par.ubicacionPractico = "";
+                delete par.ubicacion;
+              }
+              if (!par.profesorPractico && par.profesor) {
+                par.profesorPractico = '';  // solo inicializar, sin migrar
+              }
+              if (!par.profesor) {
+                // si no hay profesor, buscar en el antiguo campo info
+                var infoParsed = pbParseInfo(par.info || '');
+                if (infoParsed.prof) par.profesor = infoParsed.prof;
+              }
             });
           }
         });
@@ -127,9 +147,11 @@
         });
 
         mat.paralelos[pId] = {
-          horarios: horarios,
+          horariosTeoricos: horarios,
+          horariosPracticos: [],
           profesor: prof || 'Sin profesor',
-          ubicacion: ubic || '',
+          ubicacionTeorico: ubic || '',
+          ubicacionPractico: '',
           examenes: {}
         };
         mat._pOrder.push(pId);

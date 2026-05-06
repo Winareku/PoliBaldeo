@@ -94,6 +94,12 @@
         PlannerState.colorCtr = maxIdx + 1;
       }
       plannerBuildGrid();
+      // Aplicar ícono inicial del botón de vista
+      var btnView = document.getElementById('btn-toggle-exams');
+      if (btnView) {
+        btnView.querySelector('.sym').textContent = 'school';
+        btnView.title = 'Ver exámenes (Parcial)';
+      }
       plannerRefresh();
       plannerInitResizeObserver();
       plannerApplyCalendarVisibility();
@@ -112,6 +118,7 @@
   };
 
   document.getElementById('btn-collapse-all').onclick = plannerToggleCollapseAll;
+  document.getElementById('btn-toggle-calendar').onclick = plannerToggleCalendar;
 
   // ── Modal de exportación ICS (con PBModal) ───────────────────
 
@@ -196,72 +203,244 @@
 
   document.getElementById('btn-export-ics').onclick = _icsOpenModal;
 
-  // Mostrar / Ocultar calendario
-  document.getElementById('btn-toggle-calendar').onclick = plannerToggleCalendar;
+  document.getElementById('btn-toggle-exams').onclick = function() {
+    var modes = ['clases', 'examenes-parcial', 'examenes-final', 'examenes-mejoramiento'];
+    var idx = modes.indexOf(PlannerState.viewMode);
+    var next = modes[(idx + 1) % modes.length];
+    PlannerState.viewMode = next;
+
+    var btn = document.getElementById('btn-toggle-exams');
+    if (btn) {
+      var icons = {
+        'clases': 'school',
+        'examenes-parcial': 'looks_one',
+        'examenes-final': 'looks_two',
+        'examenes-mejoramiento': 'looks_3'
+      };
+      var titles = {
+        'clases': 'Ver exámenes (Parcial)',
+        'examenes-parcial': 'Ver exámenes (Final)',
+        'examenes-final': 'Ver exámenes (Mejoramiento)',
+        'examenes-mejoramiento': 'Ver horario de clases'
+      };
+      btn.querySelector('.sym').textContent = icons[next];
+      btn.title = titles[next];
+    }
+    plannerRefresh();
+  };
 
   // ── Captura de imagen del horario ─────────────────────────────
 
   function _captureScheduleImage() {
     var rightPanel   = document.querySelector('.right-panel');
+    var daysHdr      = document.querySelector('.days-hdr');
     var gridScroll   = document.querySelector('.grid-scroll');
     var scheduleGrid = document.getElementById('schedule-grid');
+    var gutterEl     = document.querySelector('.time-gutter');
+    var btn          = document.getElementById('btn-capture-image');
 
-    // No hacer nada si el calendario está oculto
-    if (!rightPanel || !gridScroll || !scheduleGrid) return;
+    if (!rightPanel || !daysHdr || !gridScroll || !scheduleGrid) return;
     if (rightPanel.style.display === 'none') {
       plannerSetStatus('El calendario está oculto', 'warning');
       return;
     }
 
-    // Guardar estilos originales
+    // Bloquear botón
+    if (btn) btn.disabled = true;
+
+    // ── 1. Calcular rango horario ocupado ─────────────────────
+    var minMinute = 24 * 60, maxMinute = 0;
+    var selectedMats = PlannerState.selected;
+    var allKeys = pbMatKeys(PlannerState.data);
+
+    allKeys.forEach(function(m) {
+      var pId = selectedMats[m];
+      if (!pId) return;
+      var pd = PlannerState.data[m].paralelos[pId];
+      if (!pd) return;
+
+      var horarios = [];
+      if (PlannerState.viewMode === 'clases') {
+        horarios = (pd.horariosTeoricos || pd.horarios || []).concat(pd.horariosPracticos || []);
+      }
+
+      pbParseH(horarios).forEach(function(sl) {
+        var startMin = sl.s + PB_GRID_SH * 60;
+        var endMin   = sl.e + PB_GRID_SH * 60;
+        if (startMin < minMinute) minMinute = startMin;
+        if (endMin   > maxMinute) maxMinute = endMin;
+      });
+
+      if (PlannerState.viewMode !== 'clases') {
+        var examKey = {
+          'examenes-parcial': 'parcial',
+          'examenes-final': 'final',
+          'examenes-mejoramiento': 'mejoramiento'
+        }[PlannerState.viewMode] || 'parcial';
+        var exam = pd.examenes && pd.examenes[examKey];
+        if (exam && exam.inicio && exam.fin) {
+          var partsI = exam.inicio.split(':').map(Number);
+          var partsF = exam.fin.split(':').map(Number);
+          var startMin = partsI[0]*60 + partsI[1];
+          var endMin   = partsF[0]*60 + partsF[1];
+          if (startMin < minMinute) minMinute = startMin;
+          if (endMin   > maxMinute) maxMinute = endMin;
+        }
+      }
+    });
+
+    if (minMinute > maxMinute) {
+      minMinute = PB_GRID_SH * 60;
+      maxMinute = PB_GRID_EH * 60;
+    }
+
+    minMinute = Math.max(PB_GRID_SH * 60, minMinute - 30);
+    maxMinute = Math.min(PB_GRID_EH * 60, maxMinute + 30);
+
+    var adjustedTotalMinutes = maxMinute - minMinute;
+    var adjustedGridHeight   = Math.ceil((adjustedTotalMinutes / 60) * PB_HOUR_PX);
+
+    // ── 2. Guardar estilos originales y tops ──────────────────
     var origRightWidth     = rightPanel.style.width;
     var origRightHeight    = rightPanel.style.height;
     var origRightFlex      = rightPanel.style.flex;
+    var origRightOverflow  = rightPanel.style.overflow;
     var origOverflow       = gridScroll.style.overflow;
     var origMaxHeight      = gridScroll.style.maxHeight;
     var origHeight         = gridScroll.style.height;
     var origGridHeight     = scheduleGrid.style.height;
+    var origGutterHeight   = gutterEl ? gutterEl.style.height : '';
+    var origGutterOverflow = gutterEl ? gutterEl.style.overflow : '';
 
-    // Forzar dimensiones fijas para que se muestre todo el contenido
+    // Guardar tops originales
+    var origTops = {
+      blocks : [],
+      lines  : [],
+      labels : [],
+      cols   : []
+    };
+
+    document.querySelectorAll('.ev-block').forEach(function(el) {
+      origTops.blocks.push({ el: el, top: el.style.top });
+    });
+    document.querySelectorAll('.h-line, .hh-line').forEach(function(el) {
+      origTops.lines.push({ el: el, top: el.style.top });
+    });
+    document.querySelectorAll('.t-label').forEach(function(el) {
+      origTops.labels.push({ el: el, top: el.style.top, display: el.style.display });
+    });
+    document.querySelectorAll('.day-col').forEach(function(el) {
+      origTops.cols.push({ el: el, height: el.style.height, overflow: el.style.overflow });
+    });
+
+    // ── 3. Crear marca de agua y medir ────────────────────────
+    var watermark = document.createElement('div');
+    watermark.textContent = 'Mi horario – by PoliBaldeo';
+    watermark.style.cssText = 'text-align:center;padding:10px 0 6px;font-size:14px;color:var(--text-sub);opacity:0.8;font-family:"Plus Jakarta Sans",sans-serif;';
+    rightPanel.appendChild(watermark);
+    var watermarkHeight = watermark.offsetHeight;
+
+    // ── 4. Ajustar dimensiones ───────────────────────────────
+    var daysHdrHeight = daysHdr.offsetHeight;
+    var gridScrollPadding = 24;
+    var totalPanelHeight = daysHdrHeight + adjustedGridHeight + gridScrollPadding + watermarkHeight;
+
     rightPanel.style.width      = '1200px';
-    rightPanel.style.height     = 'auto';
+    rightPanel.style.height     = totalPanelHeight + 'px';
     rightPanel.style.flex       = 'none';
+    rightPanel.style.overflow   = 'hidden';
     gridScroll.style.overflow   = 'visible';
     gridScroll.style.maxHeight  = 'none';
-    gridScroll.style.height     = 'auto';
-    scheduleGrid.style.height   = PB_GRID_PX + 'px';
+    gridScroll.style.height     = (adjustedGridHeight + gridScrollPadding) + 'px';
+    scheduleGrid.style.height   = adjustedGridHeight + 'px';
 
-    // Pequeño retraso para que el navegador reaccione al cambio de layout
+    if (gutterEl) {
+      gutterEl.style.height   = adjustedGridHeight + 'px';
+      gutterEl.style.overflow = 'hidden';
+    }
+
+    document.querySelectorAll('.day-col').forEach(function(col) {
+      col.style.height   = adjustedGridHeight + 'px';
+      col.style.overflow = 'hidden';
+    });
+
+    // Ocultar etiquetas fuera de rango
+    document.querySelectorAll('.t-label').forEach(function(label) {
+      var topVal = parseFloat(label.style.top);
+      if (topVal > adjustedGridHeight) {
+        label.style.display = 'none';
+      }
+    });
+
+    // ── 5. Desplazar elementos ────────────────────────────────
+    var offsetY = (minMinute - PB_GRID_SH * 60) * PB_MIN_PX;
+    document.querySelectorAll('.ev-block').forEach(function(blk) {
+      blk.style.top = (parseFloat(blk.style.top) - offsetY) + 'px';
+    });
+    document.querySelectorAll('.h-line, .hh-line').forEach(function(line) {
+      line.style.top = (parseFloat(line.style.top) - offsetY) + 'px';
+    });
+    document.querySelectorAll('.t-label').forEach(function(label) {
+      if (label.style.display !== 'none') {
+        label.style.top = (parseFloat(label.style.top) - offsetY) + 'px';
+      }
+    });
+
+    // ── 6. Capturar ──────────────────────────────────────────
     setTimeout(function() {
-      // Capturar el panel derecho completo
       htmlToImage.toPng(rightPanel, {
-        width: 1200,
+        width: rightPanel.scrollWidth,
         height: rightPanel.scrollHeight,
         pixelRatio: 2,
         backgroundColor: getComputedStyle(document.body).getPropertyValue('--bg').trim() || '#121212'
       }).then(function (dataUrl) {
-        // Descargar imagen
         var a = document.createElement('a');
         a.href = dataUrl;
-        a.download = 'horario_espol_' + new Date().toISOString().slice(0, 10) + '.png';
+        a.download = 'horario_espol_' + new Date().toISOString().slice(0,10) + '.png';
         a.click();
-
-        // Restaurar estilos originales
-        restoreStyles();
+        restoreAll();
+        if (btn) btn.disabled = false;
       }).catch(function (error) {
-        console.error('Error al capturar la imagen:', error);
-        restoreStyles();
+        if (!(error && error.message && (
+            error.message.includes('Failed to fetch') ||
+            error.message.includes('NetworkError') ||
+            error.message.includes('timed out')))) {
+          console.error('Error al capturar la imagen:', error);
+        }
+        restoreAll();
+        if (btn) btn.disabled = false;
       });
-    }, 100);
+    }, 150);
 
-    function restoreStyles() {
+    // ── Restauración completa ────────────────────────────────
+    function restoreAll() {
       rightPanel.style.width      = origRightWidth;
       rightPanel.style.height     = origRightHeight;
       rightPanel.style.flex       = origRightFlex;
+      rightPanel.style.overflow   = origRightOverflow;
       gridScroll.style.overflow   = origOverflow;
       gridScroll.style.maxHeight  = origMaxHeight;
       gridScroll.style.height     = origHeight;
       scheduleGrid.style.height   = origGridHeight;
+      if (gutterEl) {
+        gutterEl.style.height     = origGutterHeight;
+        gutterEl.style.overflow   = origGutterOverflow;
+      }
+      // Restaurar tops originales
+      origTops.blocks.forEach(function(item) { item.el.style.top = item.top; });
+      origTops.lines.forEach(function(item)  { item.el.style.top = item.top; });
+      origTops.labels.forEach(function(item) {
+        item.el.style.top = item.top;
+        item.el.style.display = item.display;
+      });
+      origTops.cols.forEach(function(item) {
+        item.el.style.height   = item.height;
+        item.el.style.overflow = item.overflow;
+      });
+      // Quitar marca de agua
+      if (rightPanel.contains(watermark)) rightPanel.removeChild(watermark);
+      // Redibujar bloques (por si acaso)
+      plannerDrawBlocks();
     }
   }
 
@@ -270,16 +449,21 @@
   // ── Auto-selección de combinación sin conflictos ─────────────
 
   // ── Función auxiliar para detectar conflictos de clase ───────
-  function _hasClassConflict(materia, pId) {
+  function _hasClassConflict(materia, pId, limitIdx) {
     var data = PlannerState.data;
-    var slots = pbParseH(data[materia].paralelos[pId].horarios);
+    var par = data[materia].paralelos[pId];
+    var allHorarios = (par.horariosTeoricos || par.horarios || []).concat(par.horariosPracticos || []);
+    var slots = pbParseH(allHorarios);
     var mks = pbMatKeys(data);
-    for (var i = 0; i < mks.length; i++) {
+    var end = (typeof limitIdx === 'number') ? limitIdx : mks.length;
+    for (var i = 0; i < end; i++) {
       var sm = mks[i];
       if (sm === materia) continue;
       var selPId = PlannerState.selected[sm];
       if (!selPId) continue;
-      var selSlots = pbParseH(data[sm].paralelos[selPId].horarios);
+      var selPar = data[sm].paralelos[selPId];
+      var selAllHorarios = (selPar.horariosTeoricos || selPar.horarios || []).concat(selPar.horariosPracticos || []);
+      var selSlots = pbParseH(selAllHorarios);
       if (pbOverlaps(slots, selSlots)) return true;
     }
     return false;
@@ -326,7 +510,7 @@
         for (var i = 0; i < pKeys.length; i++) {
           var pId = pKeys[i];
           PlannerState.selected[m] = pId;
-          if (!hasExamConflict(m, pId) && !_hasClassConflict(m, pId)) {
+          if (!hasExamConflict(m, pId) && !_hasClassConflict(m, pId, index)) {
             if (backtrack(index + 1)) return true;
           }
           delete PlannerState.selected[m];
@@ -385,22 +569,7 @@
     persistSelection();
   }
 
-  // ── Alternar vista Clases / Exámenes ─────────────────────────
 
-  document.getElementById('btn-toggle-exams').onclick = function() {
-    PlannerState.viewMode = (PlannerState.viewMode === 'clases') ? 'examenes' : 'clases';
-    var btn = document.getElementById('btn-toggle-exams');
-    if (btn) {
-      if (PlannerState.viewMode === 'examenes') {
-        btn.querySelector('.sym').textContent = 'calendar_month';
-        btn.title = 'Ver horario de clases';
-      } else {
-        btn.querySelector('.sym').textContent = 'edit_calendar';
-        btn.title = 'Ver exámenes';
-      }
-    }
-    plannerRefresh();
-  };
 
   // ── Listener de almacenamiento para actualizaciones en vivo ──
 

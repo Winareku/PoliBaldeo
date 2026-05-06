@@ -1,7 +1,7 @@
 # Polibaldeo — Architecture Reference
 
 > **Target audience:** AI agents and developers onboarding to the codebase.  
-> **Extension version:** 1.3.6 — Manifest V3, modular shared-script architecture.
+> **Extension version:** 1.4.0 — Manifest V3, modular shared-script architecture.
 
 ---
 
@@ -9,7 +9,7 @@
 
 Polibaldeo es una extensión de Chrome diseñada para asistir a los estudiantes de la **ESPOL** (Escuela Superior Politécnica del Litoral) durante el proceso de matriculación. Opera exclusivamente en el portal académico de la universidad y ofrece dos capacidades principales:
 
-1.  **Capture (Captura):** Un script de contenido inyecta un botón y un navegador de paralelos en la página de detalles de la materia. Al hacer clic, extrae los datos de horarios del paralelo, los exámenes (parcial, final, mejoramiento), el profesor y la ubicación, y los persiste en `chrome.storage.local`.
+1.  **Capture (Captura):** Un script de contenido inyecta un **botón split** (con menú desplegable) y un navegador de paralelos en la página de detalles de la materia. El botón principal permite añadir o actualizar el paralelo actual (teórico + práctico activo). El menú desplegable incluye la opción **“Añadir todo”**, que recorre **todas las combinaciones de paralelos prácticos asociados** al teórico (sin recargar la página), extrae sus horarios, profesor, ubicación, exámenes y los persiste en `chrome.storage.local` en un solo lote.
 2.  **Plan & Organize (Planificación):** Un panel lateral (Side Panel) y una ventana de planificador independiente leen los datos almacenados, renderizan una cuadrícula de horarios semanal, detectan conflictos de tiempo (incluyendo solapamiento de exámenes), permiten alternar entre la vista de clases y la vista de exámenes, exportar la selección a imagen PNG o a calendario, y gestionar los datos mediante importación/exportación en formato JSON. La selección del usuario, la configuración de colores y el estado de los acordeones se conservan automáticamente y se sincronizan entre las distintas vistas.
 
 ### Chrome APIs used
@@ -104,7 +104,7 @@ Funciona en segundo plano. Su única responsabilidad actual es escuchar el event
 Se inyecta en el portal académico. Contiene las funciones `parseExamInfo`, `_extractData`, `saveData`, `showToast` y `captureData`. Extrae horarios, profesor, ubicación y exámenes, y persiste los datos en `chrome.storage.local`.
 
 ### `src/content/content-navigator.js` — Interfaz de Navegación
-Inyecta el botón "Añadir a Polibaldeo" y un navegador de paralelos estilo Material 3. Utiliza un `MutationObserver` para garantizar su persistencia ante cambios dinámicos del DOM.
+Inyecta un **botón split** (con menú desplegable) y un navegador de paralelos estilo Material 3. El botón principal captura el paralelo teórico actual junto con el práctico activo (o el único práctico). El menú desplegable ofrece la opción **“Añadir todo”**, que extrae eficientemente todas las combinaciones de prácticos asociados al teórico **sin recargar la página**, leyendo directamente los contenedores DOM ocultos (`tabla_*`) y guardando los datos en lote para evitar conflictos de concurrencia. Utiliza un `MutationObserver` para garantizar su persistencia.
 
 ### `src/shared/ics-exporter.js` — Exportación a Calendario
 Módulo encargado de transformar la selección del usuario en un archivo `.ics` compatible con Google Calendar u Outlook.
@@ -208,6 +208,8 @@ Coordina la inicialización y gestiona las acciones principales:
 El flujo de información en Polibaldeo sigue un modelo descentralizado basado en el almacenamiento local de Chrome:
 
 1.  **Captura:** Cuando el usuario interactúa con la página de ESPOL, `content-scraper.js` extrae la información (incluyendo exámenes) y la envía directamente a `chrome.storage.local`. No hay comunicación directa (mensajería) entre el script de contenido y la UI; el almacenamiento actúa como la "fuente de verdad".
+
+    **Captura múltiple (Añadir todo):** Cuando el usuario selecciona la opción del menú desplegable, `content‑navigator.js` recopila síncronamente los datos de **todos los contenedores de prácticos** (`tabla_*`) presentes en el DOM estático. No se simulan clics ni se disparan eventos, por lo que la página **no se recarga**. Los datos se agrupan y se guardan en una única operación de `chrome.storage.local`, garantizando la integridad y evitando pérdidas de información. El botón se deshabilita durante el proceso y se restaura al finalizar.
 2.  **Notificación Reactiva:** El Side Panel (`popup.js`) y el Planificador (`planner.js`) mantienen listeners activos sobre el almacenamiento. En cuanto los datos cambian, estas interfaces activan sus funciones de renderizado para mostrar la nueva materia o paralelo sin necesidad de recargar.
 3.  **Gestión de Estado de UI:** Las preferencias visuales, como si una tarjeta de materia está colapsada o el número de créditos asignado manualmente, se guardan en el mismo objeto de datos, junto con metadatos como la selección del planner (`_selected`) y el mapa de colores (`_colorMap`). Esto asegura que la experiencia sea consistente entre el panel lateral y el planificador, incluso después de renombrar materias o reordenar elementos.
 4.  **Salida de Datos:** Para la exportación, los módulos `exporter.js` (JSON) e `ics-exporter.js` (iCalendar) toman el estado actual del almacenamiento y las selecciones activas en el planificador para generar archivos descargables de forma local mediante Blobs de JavaScript. Adicionalmente, el planner puede exportar la vista como imagen PNG.

@@ -8,7 +8,8 @@
 
 ## 🚀 Características Principales
 
-  - **Captura Inteligente**: Inyecta un botón "Añadir" y un navegador de paralelos directamente en el portal académico. Extrae horarios, profesor, ubicación y exámenes (parcial, final y mejoramiento) con un solo clic.
+  - **Captura Inteligente**: Inyecta un **botón split** (con menú desplegable) y un navegador de paralelos directamente en el portal académico. El botón principal añade o actualiza el paralelo actual (teórico + práctico activo). El menú desplegable incluye la opción **“Añadir todo”**, que captura **todas las combinaciones de paralelos prácticos** asociados al teórico en un solo paso, sin recargar la página, extrayendo horarios, profesor, ubicación y exámenes (parcial, final y mejoramiento) de cada uno.
+  - **Captura masiva de prácticos**: Con un solo clic en el menú desplegable, añade todas las combinaciones teórico‑práctico de la materia actual, ahorrando tiempo al usuario.
   - **Navegador de paralelos**: Menú de navegación entre paralelos de una misma materia estilo Material 3, ubicado debajo del título de la página.
   - **Planificador Visual (Planner)**: Interfaz dedicada con una rejilla semanal para visualizar la carga académica. Incluye una vista alternativa para mostrar únicamente los exámenes parciales.
   - **Detección de Conflictos**: Sistema automático que identifica y resalta cruces de horarios entre paralelos seleccionados, incluyendo conflictos entre exámenes. Muestra las materias conflictivas al pasar el ratón sobre el icono de advertencia.
@@ -59,7 +60,7 @@ La extensión utiliza una arquitectura modular de scripts compartidos (Vanilla J
     - `styles/`: Hojas de estilo modulares (variables, base, botones, modal, componentes compartidos).
     - `components/`: Componentes UI reutilizables (modal dinámico).
     - `libs/`: Librerías de terceros (html-to-image para captura de imagen).
-  - `content/`: Scripts inyectados en el portal académico para scraping y navegación de paralelos.
+  - `content/content-navigator.js`: Inyecta el **botón split** y el navegador de paralelos. Gestiona la captura del paralelo actual y la captura masiva de todas las combinaciones de prácticos mediante lectura directa del DOM estático (sin recargar la página).
   - `planner/`: Interfaz y lógica del planificador de horarios, dividida en módulos (conflictos, grilla, UI y orquestador).
   - `popup/`: Menú rápido de la extensión, con módulos separados para estado, toasts, modales, tarjetas, drag & drop y orquestador.
 

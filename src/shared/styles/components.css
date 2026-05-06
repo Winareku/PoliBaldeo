@@ -45,6 +45,11 @@
   color: var(--text-sub);
   margin-top: 4px;
 }
+.ubicacion-pill-practico {
+  background: rgba(176,138,0,0.1);
+  border-color: #b08a00;
+  color: #ffd878;
+}
 
 /* Tags de horarios (popup) */
 .horario-tags {
@@ -59,6 +64,11 @@
   padding: 2px 8px;
   border-radius: 100px;
   color: var(--text-sub);
+}
+.horario-tag-practico {
+  background: #3a2e00;
+  border-color: #b08a00;
+  color: #ffd878;
 }
 
 /* Tags de exámenes (popup) */

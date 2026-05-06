@@ -202,16 +202,28 @@ function plannerRenderLeft() {
 
       var cbCls = 'par-cb' + (isSel ? ' cb-on' : '');
 
-      var prof = (pd.profesor || '').trim();
-      if (!prof) {
-        // fallback por si viene de datos antiguos con info
+      var profTeo = (pd.profesor || '').trim();
+      var profPrac = (pd.profesorPractico || '').trim();
+      if (!profTeo && !profPrac) {
         var profMatch = (pd.info || '').match(/Profesor:\s*(.+)/);
-        prof = profMatch ? profMatch[1].trim() : '';
+        profTeo = profMatch ? profMatch[1].trim() : '';
       }
-      var ubic = pd.ubicacion || '';
-      var slotsHtml  = (pd.horarios || []).map(function(h) {
+      var prof = '';
+      if (profTeo && profPrac && profTeo !== profPrac) {
+        prof = profTeo + ' · ' + profPrac;
+      } else {
+        prof = profTeo || profPrac || '';
+      }
+      var ubicTeo = pd.ubicacionTeorico || pd.ubicacion || '';
+      var ubicPrac = pd.ubicacionPractico || '';
+      var slotsHtml  = (pd.horariosTeoricos || pd.horarios || []).map(function(h) {
         return '<span class="slot-pill">' + h + '</span>';
       }).join('');
+      if (pd.horariosPracticos && pd.horariosPracticos.length) {
+        slotsHtml += pd.horariosPracticos.map(function(h) {
+          return '<span class="slot-pill slot-pill-practico">' + h + '</span>';
+        }).join('');
+      }
 
       var item = document.createElement('div');
       item.className = cls;
@@ -221,7 +233,8 @@ function plannerRenderLeft() {
         '<div class="par-content">' +
           '<span class="par-badge" style="background:' + c.ac + '1a; color:' + c.fg + '; border:1px solid ' + c.ac + '40">Par. ' + pId + '</span>' +
           (prof ? '<div class="par-prof">' + prof + '</div>' : '') +
-          (ubic ? '<div class="par-ubic">' + ubic + '</div>' : '') +
+          (ubicTeo ? '<div class="par-ubic">' + ubicTeo + '</div>' : '') +
+          (ubicPrac ? '<div class="par-ubic-prac">' + ubicPrac + '</div>' : '') +
           '<div class="par-slots">' + (slotsHtml || '<span class="slot-pill">Sin horario</span>') + '</div>' +
         '</div>' +
         (hasConflict ? '<span class="sym conflict-icon">warning</span>' : '');
@@ -351,26 +364,50 @@ function updateParaleloDetails() {
       // Actualizar profesor
       var profEl = item.querySelector('.par-prof');
       if (profEl) {
-        var prof = pd.profesor || '';
-        if (!prof) {
+        var profTeo = (pd.profesor || '').trim();
+        var profPrac = (pd.profesorPractico || '').trim();
+        if (!profTeo && !profPrac) {
           var profMatch = (pd.info || '').match(/Profesor:\s*(.+)/);
-          prof = profMatch ? profMatch[1].trim() : '';
+          profTeo = profMatch ? profMatch[1].trim() : '';
+        }
+        var prof = '';
+        if (profTeo && profPrac && profTeo !== profPrac) {
+          prof = profTeo + ' · ' + profPrac;
+        } else {
+          prof = profTeo || profPrac || '';
         }
         profEl.textContent = prof || 'Sin profesor';
       }
 
-      // Actualizar ubicación
+      // Actualizar ubicación teórica
       var ubicEl = item.querySelector('.par-ubic');
       if (ubicEl) {
-        ubicEl.textContent = pd.ubicacion || '';
+        ubicEl.textContent = pd.ubicacionTeorico || pd.ubicacion || '';
+      }
+
+      // Actualizar ubicación práctica (si existe)
+      var ubicPracEl = item.querySelector('.par-ubic-prac');
+      if (ubicPracEl) {
+        ubicPracEl.textContent = pd.ubicacionPractico || '';
+      } else if (pd.ubicacionPractico) {
+        // Si la ubicación práctica no existía antes pero ahora sí, crearla
+        var newUbicPrac = document.createElement('div');
+        newUbicPrac.className = 'par-ubic-prac';
+        newUbicPrac.textContent = pd.ubicacionPractico;
+        item.appendChild(newUbicPrac);
       }
 
       // Actualizar slots de horarios
       var slotsContainer = item.querySelector('.par-slots');
       if (slotsContainer) {
-        var slotsHtml = (pd.horarios || []).map(function(h) {
+        var slotsHtml = (pd.horariosTeoricos || pd.horarios || []).map(function(h) {
           return '<span class="slot-pill">' + h + '</span>';
         }).join('');
+        if (pd.horariosPracticos && pd.horariosPracticos.length) {
+          slotsHtml += pd.horariosPracticos.map(function(h) {
+            return '<span class="slot-pill slot-pill-practico">' + h + '</span>';
+          }).join('');
+        }
         slotsContainer.innerHTML = slotsHtml || '<span class="slot-pill">Sin horario</span>';
       }
 
@@ -489,7 +526,7 @@ function plannerApplyCalendarVisibility() {
   var windowWidth = document.documentElement.clientWidth || window.innerWidth;
   var tooNarrow   = windowWidth < CALENDAR_BREAKPOINT;
 
-  var visible = PlannerState.showCalendar && !tooNarrow;
+  var visible = PlannerState.showCalendar;
   rightPanel.style.display = visible ? '' : 'none';
 
   if (leftPanel) {

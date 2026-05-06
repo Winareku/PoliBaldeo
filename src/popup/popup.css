@@ -451,3 +451,89 @@
   max-width: 150px;     /* evita que sea demasiado ancho */
   display: block;
 }
+
+#pb-horarios-teo-container,
+#pb-horarios-prac-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pb-section-container {
+  background: var(--surface-variant);
+  border: 1px solid var(--outline-variant);
+  border-radius: 16px;
+  margin-top: 12px;
+  overflow: hidden;
+}
+
+.pb-section-collapse-hdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--outline-variant);
+}
+.pb-section-chevron {
+  font-size: 20px;
+  transition: transform 0.2s;
+}
+.pb-section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+.pb-section-body {
+  padding: 8px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pb-section-body.collapsed {
+  display: none;
+}
+
+.modal-body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--outline-variant) transparent;
+  overflow-y: auto;
+}
+.modal-body::-webkit-scrollbar {
+  width: 5px;
+}
+.modal-body::-webkit-scrollbar-thumb {
+  background: var(--outline-variant);
+  border-radius: 8px;
+}
+
+.pb-horarios-scroll {
+  max-height: 200px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--outline-variant) transparent;
+}
+.pb-horarios-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+.pb-horarios-scroll::-webkit-scrollbar-thumb {
+  background: var(--outline-variant);
+  border-radius: 8px;
+}
+
+/* Contenido extra en la cabecera colapsable (ej. input de paralelo) */
+.pb-header-extra {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+.pb-header-extra .pb-text-input {
+  background: var(--surface);
+  border: 1px solid var(--outline-variant);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--text-main);
+  max-width: 80px;
+  text-align: center;
+}

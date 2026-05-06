@@ -69,7 +69,11 @@ function plannerBuildCMap() {
     if (p) {
       // AÑADE ESTA LÍNEA DE SEGURIDAD
       if (PlannerState.data[m] && PlannerState.data[m].paralelos[p]) {
-        selSlots[m] = pbParseH(PlannerState.data[m].paralelos[p].horarios);
+        // Combinar horarios teóricos y prácticos
+        var horariosTeor = PlannerState.data[m].paralelos[p].horariosTeoricos || PlannerState.data[m].paralelos[p].horarios || [];
+        var horariosPrac = PlannerState.data[m].paralelos[p].horariosPracticos || [];
+        var allHorarios = horariosTeor.concat(horariosPrac);
+        selSlots[m] = pbParseH(allHorarios);
       }
     }
   });
@@ -79,7 +83,11 @@ function plannerBuildCMap() {
     var mat = PlannerState.data[m];
     if (!mat || !mat.paralelos) return;
     Object.keys(mat.paralelos).forEach(function(p) {
-      var slots    = pbParseH(mat.paralelos[p].horarios);
+      // Combinar horarios teóricos y prácticos
+      var horariosTeor = mat.paralelos[p].horariosTeoricos || mat.paralelos[p].horarios || [];
+      var horariosPrac = mat.paralelos[p].horariosPracticos || [];
+      var allHorarios = horariosTeor.concat(horariosPrac);
+      var slots    = pbParseH(allHorarios);
       var conflict = false;
       Object.keys(selSlots).forEach(function(sm) {
         if (!conflict && sm !== m && pbOverlaps(slots, selSlots[sm])) {
@@ -107,7 +115,11 @@ function getConflictingMaterialsForParallel(materia, pId) {
   var data = PlannerState.data;
   var mat = data[materia];
   if (!mat || !mat.paralelos || !mat.paralelos[pId]) return [];
-  var slots = pbParseH(mat.paralelos[pId].horarios);
+  // Combinar horarios teóricos y prácticos
+  var horariosTeor = mat.paralelos[pId].horariosTeoricos || mat.paralelos[pId].horarios || [];
+  var horariosPrac = mat.paralelos[pId].horariosPracticos || [];
+  var allHorarios = horariosTeor.concat(horariosPrac);
+  var slots = pbParseH(allHorarios);
   var conflicts = [];  // { name, type }
 
   Object.keys(PlannerState.selected).forEach(function(sm) {
@@ -117,8 +129,11 @@ function getConflictingMaterialsForParallel(materia, pId) {
     var selData = data[sm];
     if (!selData || !selData.paralelos || !selData.paralelos[selPId]) return;
     
-    // Conflicto de horarios de clase
-    var selSlots = pbParseH(selData.paralelos[selPId].horarios);
+    // Conflicto de horarios de clase (teóricos y prácticos)
+    var selHorariosTeor = selData.paralelos[selPId].horariosTeoricos || selData.paralelos[selPId].horarios || [];
+    var selHorariosPrac = selData.paralelos[selPId].horariosPracticos || [];
+    var selAllHorarios = selHorariosTeor.concat(selHorariosPrac);
+    var selSlots = pbParseH(selAllHorarios);
     if (pbOverlaps(slots, selSlots)) {
       conflicts.push({ name: sm, type: 'clases' });
     }

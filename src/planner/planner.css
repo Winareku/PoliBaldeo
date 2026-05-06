@@ -111,13 +111,24 @@
   margin-bottom: 6px;
 }
 
-.par-prof {
-  font-size: 11px;
-  color: var(--text-sub);
+.par-ubic, .par-ubic-prac {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-bottom: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-bottom: 6px;
+}
+.par-ubic {
+  background: rgba(255,255,255,0.05);
+  border-left: 2px solid var(--outline-variant);
+  color: var(--text-sub);
+}
+.par-ubic-prac {
+  background: rgba(176,138,0,0.1);
+  border-left: 2px solid #b08a00;
+  color: #ffd878;
 }
 
 .par-slots {
@@ -133,6 +144,11 @@
   border-radius: 100px;
   padding: 4px 8px;
   color: var(--text-sub);
+}
+.slot-pill-practico {
+  background: rgba(176,138,0,0.1);
+  border-color: #b08a00;
+  color: #ffd878;
 }
 
 /* Scrollbars dark */
@@ -252,11 +268,7 @@
   cursor: pointer;
 }
 
-.par-ubic {
-  font-size: 10px;
-  color: var(--text-sub);
-  margin-bottom: 4px;
-}
+
 
 /* ============================================================
    TOASTS UNIFICADOS (compartidos con popup)

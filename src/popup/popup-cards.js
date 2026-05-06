@@ -41,13 +41,23 @@ function popupBuildParaleloItem(nombreMateria, nParalelo, data, parentList) {
   item.className = 'paralelo-item';
   item.dataset.paralelo = nParalelo;
 
-  // Obtener profesor (desde campo separado o del info antiguo)
-  var prof = data.profesor || '';
-  if (!prof) {
+  // Obtener profesor (desde campos separados o del info antiguo)
+  var profTeo = data.profesor || '';
+  var profPrac = data.profesorPractico || '';
+  // Si no hay profesor en los campos nuevos, intentar obtener del campo 'info' antiguo
+  if (!profTeo && !profPrac) {
     var profLine = (data.info || '').split('\n').find(function(l) {
       return l.includes('Profesor:');
     }) || '';
-    prof = profLine.replace('Profesor:', '').trim() || 'Sin profesor';
+    profTeo = profLine.replace('Profesor:', '').trim() || 'Sin profesor';
+    profPrac = '';
+  }
+  // Construir string final
+  var prof = '';
+  if (profTeo && profPrac && profTeo !== profPrac) {
+    prof = profTeo + ' · ' + profPrac;
+  } else {
+    prof = profTeo || profPrac || 'Sin profesor';
   }
   if (!prof) prof = 'Sin profesor';
 
@@ -93,19 +103,36 @@ function popupBuildParaleloItem(nombreMateria, nParalelo, data, parentList) {
 
   var horarioTags = document.createElement('div');
   horarioTags.className = 'horario-tags';
-  (data.horarios || []).forEach(function(h) {
+  // Horarios teóricos
+  (data.horariosTeoricos || data.horarios || []).forEach(function(h) {
     var tag = document.createElement('span');
     tag.className = 'horario-tag';
     tag.textContent = pbStripSec(h);
     horarioTags.appendChild(tag);
   });
+  // Horarios prácticos (si existen)
+  if (data.horariosPracticos && data.horariosPracticos.length) {
+    data.horariosPracticos.forEach(function(h) {
+      var tag = document.createElement('span');
+      tag.className = 'horario-tag horario-tag-practico';
+      tag.textContent = pbStripSec(h);
+      horarioTags.appendChild(tag);
+    });
+  }
 
-  // Ubicación como píldora sin emoji
-  if (data.ubicacion) {
+  // Ubicación teórica
+  if (data.ubicacionTeorico || data.ubicacion) {
     var ubicPill = document.createElement('span');
     ubicPill.className = 'ubicacion-pill';
-    ubicPill.textContent = data.ubicacion;
+    ubicPill.textContent = data.ubicacionTeorico || data.ubicacion;
     item.appendChild(ubicPill);
+  }
+  // Ubicación práctica (si existe)
+  if (data.ubicacionPractico) {
+    var ubicPracPill = document.createElement('span');
+    ubicPracPill.className = 'ubicacion-pill ubicacion-pill-practico';
+    ubicPracPill.textContent = data.ubicacionPractico;
+    item.appendChild(ubicPracPill);
   }
 
   item.appendChild(paraleloTop);
