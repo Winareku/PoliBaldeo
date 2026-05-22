@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PoliBaldeo</title>
+  <link rel="stylesheet" href="../shared/styles/fonts.css">
+
+  <link rel="stylesheet" href="../shared/styles/variables.css">
+  <link rel="stylesheet" href="../shared/styles/base.css">
+  <link rel="stylesheet" href="../shared/styles/buttons.css">
+  <link rel="stylesheet" href="../shared/styles/modal.css">
+  <link rel="stylesheet" href="../shared/styles/components.css">
+  <link rel="stylesheet" href="layout.css">
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body>
+  <header>
+    <img src="../shared/icons/polibaldeo_logo.svg" alt="PoliBaldeo" class="logo-img">
+    <div class="brand">
+      <h1>PoliBaldeo</h1>
+    </div>
+    <span class="counter" id="total-counter">0 mat.</span>
+    <a href="https://ko-fi.com/winareku" target="_blank" rel="noopener" class="kofi-link" title="Apóyame en Ko‑fi">
+      <img src="../shared/icons/kofi_button.svg" alt="Ko‑fi">
+    </a>
+  </header>
+
+  <div class="toolbar">
+    <button class="btn btn-primary btn-planner" id="btn-planner">
+      <span class="sym">open_in_new</span> Planner
+    </button>
+    <button class="btn btn-surface btn-icon" id="btn-export" title="Descargar .poli">
+      <span class="sym">download</span>
+    </button>
+    <button class="btn btn-surface btn-icon" id="btn-import" title="Importar .poli">
+      <span class="sym">upload</span>
+    </button>
+    <input type="file" id="file-import" accept=".poli" style="display:none">
+    <button class="btn btn-surface btn-icon" id="btn-collapse-all" title="Colapsar todas">
+      <span class="sym">unfold_less</span>
+    </button>
+    <button class="btn btn-surface btn-icon" id="btn-add-materia" title="Añadir materia">
+      <span class="sym">add</span>
+    </button>
+    <button class="btn btn-outline btn-icon" id="btn-clear" title="Borrar todo">
+      <span class="sym">delete</span>
+    </button>
+  </div>
+
+  <main id="materias-container">
+    <div id="empty-state">
+      <span class="sym">school</span>
+      <p>No has añadido materias</p>
+      <p style="font-size:11px;opacity:.7">Usa el botón "Añadir" en el Académico</p>
+    </div>
+    <div id="materias-list"></div>
+  </main>
+
+  <!-- Contenedor raíz para modales dinámicos -->
+  <div id="modal-root"></div>
+
+  <!-- Toast container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script src="../shared/utils.js"></script>
+  <script src="../shared/storage.js"></script>
+  <script src="../shared/exporter.js"></script>
+  <script src="../shared/components/modal.js"></script>
+  <script src="state.js"></script>
+  <script src="toasts.js"></script>
+  <script src="modals.js"></script>
+  <script src="cards.js"></script>
+  <script src="drag.js"></script>
+  <script src="ui.js"></script>
+</body>
+</html>

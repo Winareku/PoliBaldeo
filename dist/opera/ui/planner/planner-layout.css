@@ -1,0 +1,83 @@
+/* Estructura del planner (grid principal, paneles) */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.app-header {
+  height: 64px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--outline-variant);
+  padding: 0 8px 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
+.main-layout {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.left-panel {
+  width: 360px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--outline-variant);
+  background: #252525;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.left-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 12px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.right-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.days-hdr {
+  display: grid;
+  grid-template-columns: 50px repeat(5, 1fr);
+  border-bottom: 1px solid var(--outline-variant);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+
+.grid-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 15px;
+}
+
+.schedule-grid {
+  display: grid;
+  grid-template-columns: 50px repeat(5, 1fr);
+  position: relative;
+}
+
+.app-footer {
+  height: 48px;
+  border-top: 1px solid var(--outline-variant);
+  background: var(--surface);
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}

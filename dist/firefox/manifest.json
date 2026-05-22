@@ -1,0 +1,56 @@
+{
+  "manifest_version": 2,
+
+  "name": "PoliBaldeo",
+  "version": "1.4.1",
+  "description": "Asistente de Matriculación para ESPOL",
+
+  "icons": {
+    "16": "assets/icons/icon16.png",
+    "48": "assets/icons/icon48.png",
+    "128": "assets/icons/icon128.png"
+  },
+
+  "browser_action": {
+    "default_title": "PoliBaldeo"
+  },
+
+  "sidebar_action": {
+    "default_title": "PoliBaldeo",
+    "default_panel": "ui/ui.html"
+  },
+
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+
+  "background": {
+    "scripts": ["background/firefox.js"]
+  },
+
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.academico.espol.edu.ec/UI/Registros/MateriaPlanificada.aspx*"
+      ],
+      "js": [
+        "content/content-scraper.js",
+        "content/content-navigator.js"
+      ],
+      "css": [
+        "content/content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "polibaldeo@example.com",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  }
+}

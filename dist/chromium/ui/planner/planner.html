@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Polibaldeo — Planner</title>
+  <link rel="stylesheet" href="../../shared/styles/fonts.css">
+
+  <!-- Estilos modulares -->
+  <link rel="stylesheet" href="../../shared/styles/variables.css">
+  <link rel="stylesheet" href="../../shared/styles/base.css">
+  <link rel="stylesheet" href="../../shared/styles/buttons.css">
+  <link rel="stylesheet" href="../../shared/styles/modal.css">
+  <link rel="stylesheet" href="../../shared/styles/components.css">
+  <link rel="stylesheet" href="planner-layout.css">
+  <link rel="stylesheet" href="planner.css">
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <span class="sym hdr-icon">calendar_month</span>
+      <div class="hdr-text">
+        <h1>Planner</h1>
+      </div>
+      <button class="icon-btn" id="btn-collapse-all" title="Expandir todas las materias">
+        <span class="sym">unfold_more</span>
+      </button>
+      <button class="icon-btn" id="btn-deselect-all" title="Deseleccionar todos los paralelos">
+        <span class="sym">deselect</span>
+      </button>
+      <button class="icon-btn" id="btn-toggle-calendar" title="Ocultar calendario">
+        <span class="sym">calendar_view_week</span>
+      </button>
+      <button class="icon-btn" id="btn-capture-image" title="Guardar imagen del horario">
+        <span class="sym">photo_camera</span>
+      </button>
+      <button class="icon-btn" id="btn-export-ics" title="Descargar horario como .ics">
+        <span class="sym">calendar_add_on</span>
+      </button>
+      <button class="icon-btn" id="btn-toggle-exams" title="Ver exámenes">
+        <span class="sym">edit_calendar</span>
+      </button>
+      <button class="icon-btn" id="btn-auto-select" title="Buscar combinación sin conflictos">
+        <span class="sym">casino</span>
+      </button>
+    </header>
+
+    <div class="main-layout">
+      <aside class="left-panel">
+        <div class="left-scroll" id="left-scroll">
+          <div class="empty-state" id="empty-state">
+            <span class="sym">school</span>
+            <p>No hay materias guardadas</p>
+            <small>Ve al Académico y usa el botón "Añadir"</small>
+          </div>
+        </div>
+      </aside>
+
+      <section class="right-panel">
+        <div class="days-hdr">
+          <div class="day-hdr"></div>
+          <div class="day-hdr" data-di="0">Lun</div>
+          <div class="day-hdr" data-di="1">Mar</div>
+          <div class="day-hdr" data-di="2">Mié</div>
+          <div class="day-hdr" data-di="3">Jue</div>
+          <div class="day-hdr" data-di="4">Vie</div>
+        </div>
+        <div class="grid-scroll">
+          <div class="schedule-grid" id="schedule-grid"></div>
+        </div>
+      </section>
+    </div>
+
+    <footer class="app-footer">
+      <div class="footer-cred">
+        <span class="sym">star</span>
+        Créditos: <span class="cred-num" id="cred-num">0</span>
+      </div>
+      <div class="f-spacer" style="flex:1"></div>
+      <div class="conflict-badge" id="conflict-badge">
+        <span class="sym">warning</span>
+        Conflictos detectados
+      </div>
+    </footer>
+  </div>
+
+  <!-- Toast container (compartido con ui) -->
+  <div class="toast-container" id="toast-container"></div>
+  
+  <!-- Contenedor raíz para modales dinámicos -->
+  <div id="modal-root"></div>
+
+  <!-- Scripts en orden crítico -->
+  <script src="../../shared/utils.js"></script>
+  <script src="../../shared/storage.js"></script>
+  <script src="../../shared/ics-exporter.js"></script>
+  <script src="../../shared/components/modal.js"></script>
+  <script src="../../shared/libs/html-to-image.min.js"></script>
+  <script src="planner-conflicts.js"></script>
+  <script src="planner-grid.js"></script>
+  <script src="planner-ui.js"></script>
+  <script src="planner.js"></script>
+</body>
+</html>
