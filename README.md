@@ -43,13 +43,14 @@
 
 ## 🛠️ Instalación
 
-### Opción 1: Instalar desde la Chrome Web Store (recomendada)
+### Opción 1: Instalar desde las tiendas oficiales (recomendada)
 
-Puedes instalar PoliBaldeo directamente desde la Chrome Web Store:
+Puedes instalar PoliBaldeo directamente desde la Chrome Web Store o Firefox Add-ons:
 
 [![Disponible en Chrome Web Store](https://img.shields.io/badge/Chrome-141e24.svg?&style=for-the-badge&logo=google-chrome&logoColor=white)](https://chromewebstore.google.com/detail/polpjnkemhjlmadehenohmpjgnmjonpb?utm_source=item-share-cb)
+[![Disponible en Firefox Add-ons](https://img.shields.io/badge/Firefox-FF7139?style=for-the-badge&logo=Firefox-Browser&logoColor=white)](https://addons.mozilla.org/en-US/firefox/addon/polibaldeo/)
 
-Haz clic en el enlace y pulsa "Añadir a Chrome".
+Haz clic en el enlace de tu navegador preferido e instálalo.
 
 ### Opción 2: Instalación manual (modo desarrollador)
 
